@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>もしも宇宙ラボ - こわして学ぶ宇宙の実験室</title>
+  <meta name="description" content="もしも太陽が消えたら?木星が恒星になったら?本物の重力計算(N体シミュレーション)で「もしも」を実験できる宇宙ラボ。">
+  <meta name="theme-color" content="#080e1e">
+  <!-- ?v= はキャッシュ対策のバージョン番号。デプロイのたびに上げる -->
+  <link rel="stylesheet" href="css/style.css?v=1">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three.module.min.js",
+      "three/addons/": "./vendor/addons/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <!-- ヘッダー: タイトルとモード切替 -->
+  <div id="header">
+    <h1>🧪 もしも宇宙ラボ</h1>
+    <div id="mode-tabs">
+      <button id="lab-toggle" class="tab lab">🧪 実験</button>
+      <button id="tab-solar" class="tab active">太陽系</button>
+      <button id="tab-galaxy" class="tab">銀河系</button>
+      <button id="tab-universe" class="tab">宇宙の歴史</button>
+      <button id="tab-atoms" class="tab">原子の誕生</button>
+    </div>
+  </div>
+
+  <!-- イベント通知 -->
+  <div id="toasts"></div>
+
+  <!-- 実験中バナー -->
+  <div id="scenario-banner" class="hidden">
+    <span id="scenario-banner-title"></span>
+    <button id="scenario-explain-btn">💡 解説</button>
+    <button id="scenario-end-btn">✕ 終了</button>
+  </div>
+
+  <!-- 実験パネル -->
+  <div id="lab-panel" class="hidden">
+    <div class="panel-header">
+      <span>🧪 もしも実験室</span>
+      <button id="lab-close">✕</button>
+    </div>
+    <p class="hint">実験を選ぶとシミュレーションが始まります。何が起きるか予想してから試そう。</p>
+    <div id="scenario-list"></div>
+    <div class="divider"></div>
+    <div class="panel-subhead">📜 実験の記録</div>
+    <div id="event-log"><p class="hint">まだ記録はありません</p></div>
+  </div>
+
+  <!-- 解説モーダル -->
+  <div id="modal-overlay" class="hidden">
+    <div id="modal">
+      <div class="panel-header">
+        <span id="modal-title"></span>
+        <button id="modal-close">✕</button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- 天体編集パネル -->
+  <button id="panel-toggle">⚙ 天体の設定</button>
+  <div id="planet-panel" class="hidden">
+    <div class="panel-header">
+      <span>天体の設定</span>
+      <button id="panel-close">✕</button>
+    </div>
+
+    <label class="field">
+      <span>天体を選択</span>
+      <select id="body-select"></select>
+    </label>
+
+    <div id="body-info"></div>
+
+    <label class="field">
+      <span>大きさ: <b id="size-value">×1.00</b></span>
+      <input type="range" id="size-slider" min="-1" max="1.7" step="0.01" value="0">
+    </label>
+
+    <label class="field">
+      <span>重さ: <b id="mass-value">×1.00</b></span>
+      <input type="range" id="mass-slider" min="-2" max="3" step="0.01" value="0">
+    </label>
+
+    <label class="field" id="dist-field">
+      <span>太陽からの距離: <b id="dist-value">1.00 AU</b></span>
+      <input type="range" id="dist-slider" min="-1.3" max="1.95" step="0.01" value="0">
+    </label>
+    <p class="hint">※ 重さ・距離を変えると、その瞬間から重力で軌道が変わります。惑星は直接ドラッグでも動かせます</p>
+
+    <button id="circularize-btn" class="action">⭕ この位置で円軌道に乗せる</button>
+
+    <label class="field" id="swap-field">
+      <span>別の天体と場所を入れ替え (太陽もOK)</span>
+      <div class="swap-row">
+        <select id="swap-select"></select>
+        <button id="swap-btn">🔄 実行</button>
+      </div>
+    </label>
+
+    <button id="follow-btn" class="action secondary">🎯 この天体を追いかける</button>
+
+    <div class="divider"></div>
+
+    <label class="field">
+      <span>表示サイズの倍率: <b id="exagg-value">×60</b></span>
+      <input type="range" id="exagg-slider" min="0" max="1.9" step="0.01" value="1.778">
+    </label>
+    <p class="hint">※ 太陽と惑星の大きさの比率は常に本物どおり。×1にすると実際のスケール感(惑星はほぼ点)になります</p>
+  </div>
+
+  <!-- 時間コントロール -->
+  <div id="time-bar">
+    <div id="time-display">現在</div>
+    <div id="epoch-display" class="hidden"></div>
+    <input type="range" id="galaxy-slider" class="hidden" min="-3000" max="3000" step="5" value="0">
+    <input type="range" id="universe-slider" class="hidden" min="0" max="1" step="0.0005" value="0">
+    <input type="range" id="atoms-slider" class="hidden" min="0" max="1" step="0.001" value="0">
+    <div id="time-buttons">
+      <button id="play-btn" class="playing">⏸ 停止</button>
+      <select id="speed-select">
+        <option value="0.00274">1日/秒</option>
+        <option value="0.0192">1週間/秒</option>
+        <option value="0.0833" selected>1ヶ月/秒</option>
+        <option value="0.25">3ヶ月/秒</option>
+        <option value="1">1年/秒</option>
+        <option value="5">5年/秒</option>
+      </select>
+      <select id="galaxy-speed-select" class="hidden">
+        <option value="0.1">×0.1</option>
+        <option value="0.5">×0.5</option>
+        <option value="1" selected>×1</option>
+        <option value="2">×2</option>
+        <option value="5">×5</option>
+      </select>
+      <button id="clear-trails-btn">🧹 軌跡を消す</button>
+      <button id="reset-btn">↺ リセット</button>
+      <button id="share-btn">📸 シェア</button>
+      <button id="now-btn" class="hidden">⏺ 現在へ</button>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js?v=1"></script>
+</body>
+</html>
