@@ -27,6 +27,54 @@ npx cap open android # Android Studio でプロジェクトを開く
 
 ---
 
+## ☁️ クラウドビルド(Android Studio が無くてもビルドできる)
+GitHub Actions 上で APK / AAB をビルドする仕組みを用意しています
+(`.github/workflows/android-build.yml`)。手元の PC に Android Studio や Android SDK が
+無くても、ブラウザだけでビルドできます。
+
+### A. 動作確認用のデバッグ APK(署名不要・すぐ使える)
+1. GitHub のリポジトリ → **Actions** タブ → 左の **「Android Build」** を選択。
+2. 右上の **「Run workflow」** → ブランチ `main` を選んで実行。
+   (`main` に push しても自動で走ります)
+3. 完了したら、その実行ページ下部の **Artifacts** から **`app-debug-apk`** をダウンロード。
+4. ZIP を展開して出てくる `app-debug.apk` を Android 端末に転送し、
+   「提供元不明のアプリ」を許可してインストール → 実機で動作確認。
+
+> デバッグ APK は **テスト広告** が表示されます(`TESTING=true` のまま)。動作確認用です。
+
+### B. Play 提出用の署名済み AAB(keystore を Secrets に登録すると自動生成)
+署名鍵(keystore)を一度だけ作り、その内容を GitHub の Secrets に登録すると、
+CI が **署名済みの `app-release.aab`** まで自動で出力します(Play Console にそのまま提出可)。
+
+1. **keystore を作成**(手元に Java があれば PC で1回だけ。なくさないこと):
+   ```bash
+   keytool -genkey -v -keystore release.jks -keyalg RSA -keysize 2048 \
+     -validity 10000 -alias upload
+   ```
+   → 設定したパスワードと別名(alias `upload`)を控える。`release.jks` は紛失厳禁・**コミットしない**。
+
+2. **keystore を base64 文字列に変換**:
+   ```bash
+   base64 -w0 release.jks   # mac は base64 -i release.jks
+   ```
+
+3. リポジトリ → **Settings → Secrets and variables → Actions → New repository secret** で
+   次の **4 つ**を登録:
+   | Secret 名 | 値 |
+   |---|---|
+   | `ANDROID_KEYSTORE_BASE64` | 手順2で出力した base64 文字列 |
+   | `ANDROID_KEYSTORE_PASSWORD` | キーストアのパスワード |
+   | `ANDROID_KEY_ALIAS` | 別名(例: `upload`) |
+   | `ANDROID_KEY_PASSWORD` | 鍵のパスワード(別名のパスワード) |
+
+4. 再度 **Run workflow** を実行 → Artifacts に **`app-release-aab`** が増えます。
+   これをダウンロードして、下の「5. Google Play Console で公開」へ。
+
+> Secrets が未登録のうちは AAB ステップは自動でスキップされ、デバッグ APK だけ出ます。
+> ローカルの Android Studio でビルドする場合は、この Secrets は不要です(従来どおりの署名フロー)。
+
+---
+
 ## 2. AdMob を本番用に切り替える(広告で収益化する場合)
 今は **Google 公式のテスト広告 ID** が入っています。テスト ID のままだと実際の収益は発生しません。
 本番に切り替えるには、AdMob 管理画面でアプリと広告ユニットを作成し、**2 か所**を書き換えます。
