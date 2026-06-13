@@ -39,11 +39,11 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: JDK 17 をセットアップ
+      - name: JDK 21 をセットアップ
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - name: Android SDK をセットアップ
         uses: android-actions/setup-android@v3
