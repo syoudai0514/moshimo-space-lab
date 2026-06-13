@@ -294,7 +294,7 @@ export class SolarSystem {
         b.marker.visible = false;
         b.label.visible = false;
         sun.extraMass += this.effMass(b);
-        this.onEvent?.({ type: 'absorbed', msg: `🔥 ${b.name}は太陽に飲み込まれました` });
+        this.onEvent?.({ type: 'absorbed', key: b.key });
       }
     }
   }
@@ -305,7 +305,7 @@ export class SolarSystem {
       if (b.key === 'sun' || !b.alive || b.escaped) continue;
       if (b.pos.distanceTo(sun.pos) > ESCAPE_DIST) {
         b.escaped = true;
-        this.onEvent?.({ type: 'escaped', msg: `🚀 ${b.name}は太陽系のかなたへ飛んでいきました` });
+        this.onEvent?.({ type: 'escaped', key: b.key });
       }
     }
   }
@@ -335,6 +335,15 @@ export class SolarSystem {
       this.glow.visible = false;
       this.light.intensity = 0;
     }
+  }
+
+  // 3Dラベルの文字を差し替える(言語切り替え用)
+  setBodyLabel(key, text) {
+    const b = this.getBody(key);
+    if (!b) return;
+    b.label.material.map?.dispose();
+    b.label.material.map = makeLabelTexture(text);
+    b.label.material.needsUpdate = true;
   }
 
   setSizeScale(key, scale) {
@@ -498,7 +507,7 @@ export class SolarSystem {
 
 // ---------- スプライト類 ----------
 
-function makeLabel(text) {
+function makeLabelTexture(text) {
   const c = document.createElement('canvas');
   c.width = 256;
   c.height = 64;
@@ -510,8 +519,12 @@ function makeLabel(text) {
   ctx.shadowBlur = 8;
   ctx.fillStyle = '#dce8ff';
   ctx.fillText(text, 128, 32);
+  return new THREE.CanvasTexture(c);
+}
+
+function makeLabel(text) {
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: new THREE.CanvasTexture(c),
+    map: makeLabelTexture(text),
     transparent: true,
     depthWrite: false,
     sizeAttenuation: false, // どれだけ離れても同じ大きさで表示

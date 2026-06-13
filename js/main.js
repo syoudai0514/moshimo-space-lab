@@ -1,18 +1,24 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createGalaxy, createBackgroundStars } from './galaxy.js?v=2';
-import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=4';
+import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=5';
 import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=2';
 import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=2';
-import { SCENARIOS, EVENT_EXPLAIN, SIM_DISCLAIMER } from './scenarios.js?v=3';
-import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, SC_FURIGANA, SCENARIO_I18N } from './i18n.js?v=3';
+import { SCENARIOS } from './scenarios.js?v=3';
+import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, SC_FURIGANA } from './i18n.js?v=4';
+import { SCENARIO_I18N, OBSERVE_I18N } from './i18n-data.js?v=1';
 
+const SI = (sc) => SCENARIO_I18N[getLang()]?.[sc.id]; // 現在言語の実験翻訳(無ければ undefined)
 // 実験の表示用タイトル・問い。日本語のときは子供向けにふりがな付き。
-const scTitle = (sc) => (getLang() === 'ja' ? (SC_FURIGANA[sc.id]?.title ?? sc.title) : (SCENARIO_I18N[getLang()]?.[sc.id]?.title ?? sc.title));
-const scQuestion = (sc) => (getLang() === 'ja' ? (SC_FURIGANA[sc.id]?.q ?? sc.question) : sc.question);
+const scTitle = (sc) => (getLang() === 'ja' ? (SC_FURIGANA[sc.id]?.title ?? sc.title) : (SI(sc)?.title ?? sc.title));
+const scQuestion = (sc) => (getLang() === 'ja' ? (SC_FURIGANA[sc.id]?.q ?? sc.question) : (SI(sc)?.q ?? sc.question));
+const scWatch = (sc) => (getLang() === 'ja' ? sc.watch : (SI(sc)?.watch ?? sc.watch));
+const scExplain = (sc) => (getLang() === 'ja' ? sc.explain : (SI(sc)?.explain ?? sc.explain));
 // 共有用(プレーン): タイトル・キャッチコピーを選択言語で
-const scShareTitle = (sc) => (getLang() === 'ja' ? sc.title : (SCENARIO_I18N[getLang()]?.[sc.id]?.title ?? sc.title));
-const scShareLine = (sc) => (getLang() === 'ja' ? sc.shareLine : (SCENARIO_I18N[getLang()]?.[sc.id]?.share ?? sc.shareLine));
+const scShareTitle = (sc) => (getLang() === 'ja' ? sc.title : (SI(sc)?.title ?? sc.title));
+const scShareLine = (sc) => (getLang() === 'ja' ? sc.shareLine : (SI(sc)?.share ?? sc.shareLine));
+// 天体名(追加天体は生成時の名前、元の9天体は翻訳)
+const bodyName = (b) => (b && b.extra ? b.name : t(`body.${b.key}`));
 // "{x}" を置換する簡易フォーマッタ
 const fmt = (str, obj) => str.replace(/\{(\w+)\}/g, (_, k) => (obj[k] ?? ''));
 
@@ -151,10 +157,15 @@ function rebuildBodySelect() {
   for (const b of solar.bodies) {
     const opt = document.createElement('option');
     opt.value = b.key;
-    opt.textContent = b.name;
+    opt.textContent = bodyName(b);
     bodySelect.appendChild(opt);
   }
   if ([...bodySelect.options].some((o) => o.value === prev)) bodySelect.value = prev;
+}
+
+// 3Dラベルを現在の言語に更新
+function relabelBodies() {
+  for (const b of solar.bodies) solar.setBodyLabel(b.key, bodyName(b));
 }
 rebuildBodySelect();
 bodySelect.value = 'earth';
@@ -165,7 +176,8 @@ const toasts = $('toasts');
 function toast(ev) {
   const isObj = typeof ev === 'object';
   const msg = isObj ? ev.msg : ev;
-  const explain = isObj ? EVENT_EXPLAIN[ev.type] : null;
+  const type = isObj ? ev.type : null;
+  const explain = type ? { title: t(`event.${type}.title`), body: t(`event.${type}.body`) } : null;
   const div = document.createElement('div');
   div.className = 'toast';
   div.textContent = explain ? `${msg} 💡` : msg;
@@ -204,17 +216,18 @@ function clearLog() {
 }
 
 solar.onEvent = (ev) => {
-  toast(ev);
-  logEvent(ev.msg);
+  const msg = fmt(t(`event.${ev.type}.msg`), { name: bodyName(solar.getBody(ev.key)) });
+  toast({ type: ev.type, msg });
+  logEvent(msg);
 };
 
 // ---------- 解説モーダル ----------
 const modalOverlay = $('modal-overlay');
 function disclaimerHtml() {
-  return `<div class="disclaimer">${SIM_DISCLAIMER}</div>`;
+  return `<div class="disclaimer">${t('sim.disclaimer')}</div>`;
 }
 function openModal(title, html) {
-  $('modal-title').textContent = title;
+  $('modal-title').innerHTML = title; // ふりがな(ruby)を表示できるよう innerHTML
   $('modal-body').innerHTML = html;
   modalOverlay.classList.remove('hidden');
 }
@@ -259,8 +272,8 @@ function startScenario(sc) {
   for (const el of scenarioList.children) {
     el.classList.toggle('active', el.dataset.id === sc.id);
   }
-  logEvent(`🧪 実験開始: ${sc.title}`);
-  toast('🧪 実験スタート!何が起きるか観察しよう(💡解説 で答え合わせ)');
+  logEvent(fmt(t('toast.expStartLog'), { title: scShareTitle(sc) }));
+  toast(t('toast.expStart'));
   updatePlayBtn();
   refreshPanel();
   updateTimeDisplay();
@@ -285,9 +298,9 @@ $('lab-close').addEventListener('click', () => labPanel.classList.add('hidden'))
 $('scenario-explain-btn').addEventListener('click', () => {
   if (!activeScenario) return;
   openModal(
-    `${activeScenario.emoji} ${activeScenario.title}`,
-    `<div class="sc-watch">👀 観察ポイント: ${activeScenario.watch}</div>`
-      + activeScenario.explain
+    `${activeScenario.emoji} ${scTitle(activeScenario)}`,
+    `<div class="sc-watch">${t('modal.watch')}${scWatch(activeScenario)}</div>`
+      + scExplain(activeScenario)
       + disclaimerHtml()
   );
 });
@@ -300,7 +313,7 @@ $('scenario-end-btn').addEventListener('click', () => {
   updateFollowBtn();
   refreshPanel();
   updateTimeDisplay();
-  toast('↺ 実験を終了して元に戻しました');
+  toast(t('toast.expEnd'));
 });
 
 // ---------- 結果シェア ----------
@@ -334,11 +347,18 @@ function freeOutcomeLine(s) {
 // ---- 変更点(レシピ)の記録 ----
 // 他の人がマネしやすいように、ユーザーがいじった内容を覚えておく。
 // 同じ天体への同じ種類の変更は最新の値で上書き(挿入順は保持)。
-const editLog = new Map(); // key -> 表示テキスト
-function recordEdit(key, text) { editLog.delete(key); editLog.set(key, text); }
+const editLog = new Map(); // key -> { type, params }(表示時に現在言語で整形)
+function recordEdit(key, type, params) { editLog.delete(key); editLog.set(key, { type, params: params || {} }); }
 function dropEdit(key) { editLog.delete(key); }
 function clearEdits() { editLog.clear(); }
-function changeSummary() { return [...editLog.values()]; }
+function changeSummary() {
+  return [...editLog.values()].map(({ type, params }) => {
+    const p = { ...params };
+    if (p.key != null) p.name = bodyName(solar.getBody(p.key) || { extra: true, name: p.key });
+    if (p.key2 != null) p.name2 = bodyName(solar.getBody(p.key2) || { extra: true, name: p.key2 });
+    return fmt(t(`edit.${type}`), p);
+  });
+}
 function fmtScale(x) { return x >= 10 ? `×${Math.round(x)}` : `×${x.toFixed(2)}`; }
 
 // シェア本文: 結果を文章化 + 変更レシピ + ハッシュタグ + URL(引用したくなる一言を狙う)
@@ -350,9 +370,9 @@ function buildShareText() {
   const result = (s.absorbed || s.escaped)
     ? fmt(t('share.resultHit'), { y, a: s.absorbed, e: s.escaped, al: s.alive, t: s.total })
     : fmt(t('share.resultSafe'), { y, t: s.total });
-  // 変更レシピは現状 日本語ラベルなので、日本語のときだけ付ける(他言語は混在を避ける)
   const changes = changeSummary();
-  const recipe = (getLang() === 'ja' && changes.length) ? `\n${t('share.recipePrefix')}${changes.slice(0, 4).join('、')}` : '';
+  const sep = getLang() === 'ja' ? '、' : ' / ';
+  const recipe = changes.length ? `\n${t('share.recipePrefix')}${changes.slice(0, 4).join(sep)}` : '';
   return `${title}\n${outcome}\n${result}${recipe}\n\n${t('share.hashtags')}\n${APP_URL}`;
 }
 
@@ -376,9 +396,9 @@ $('share-line').addEventListener('click', () => {
 $('share-copy').addEventListener('click', async () => {
   try {
     await navigator.clipboard.writeText(buildShareText());
-    toast('🔗 シェア用のテキストをコピーしました');
+    toast(t('toast.copyOk'));
   } catch {
-    toast('コピーできませんでした');
+    toast(t('toast.copyFail'));
   }
   closeShareMenu();
 });
@@ -393,7 +413,7 @@ async function shareImage() {
     } catch { /* キャンセル */ }
   } else {
     downloadBlob(blob, 'moshimo-space-lab.png');
-    toast('📸 結果カードを画像として保存しました');
+    toast(t('toast.imgSaved'));
   }
 }
 
@@ -504,7 +524,7 @@ function recordClip() {
   const canStream = typeof renderer.domElement.captureStream === 'function';
   const vtype = pickVideoType();
   if (!canStream || !vtype) {
-    toast('このブラウザは動画書き出しに未対応です。📸 画像でシェアしてください');
+    toast(t('toast.videoUnsupported'));
     return;
   }
   if (mode !== 'solar') setMode('solar');
@@ -517,7 +537,7 @@ function recordClip() {
     recorder = new MediaRecorder(stream, { mimeType: vtype.mime, videoBitsPerSecond: 8_000_000 });
   } catch {
     recorder = null;
-    toast('動画の初期化に失敗しました。📸 画像でシェアしてください');
+    toast(t('toast.videoInitFail'));
     return;
   }
   recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
@@ -532,7 +552,7 @@ function recordClip() {
       } catch { /* キャンセル */ }
     } else {
       downloadBlob(blob, `moshimo-space-lab.${vtype.ext}`);
-      toast('🎬 崩壊の動画を保存しました');
+      toast(t('toast.videoSaved'));
     }
   };
 
@@ -540,7 +560,7 @@ function recordClip() {
   let remain = REC_SECONDS;
   recIndicator.textContent = `⏺ REC ${remain}`;
   recIndicator.classList.remove('hidden');
-  toast('🎬 これから6秒間を録画中…崩壊の瞬間を撮ろう!(もう一度シェアで停止)');
+  toast(t('toast.videoRec'));
   const iv = setInterval(() => {
     remain--;
     recIndicator.textContent = remain > 0 ? `⏺ REC ${remain}` : '⏺ 保存中…';
@@ -664,12 +684,12 @@ $('observe-close').addEventListener('click', () => observeMenu.classList.add('hi
 
 $('go-galaxy').addEventListener('click', () => {
   setMode('galaxy');
-  introToast('galaxy', '🌌 実験していた太陽系は、この銀河の片隅(中心から約2.6万光年)にあります');
+  introToast('galaxy', t('intro.galaxy'));
 });
 
 $('go-universe').addEventListener('click', () => {
   setMode('universe');
-  introToast('universe', '🌠 宇宙138億年の歴史。▶ 再生 でビッグバンから始まります');
+  introToast('universe', t('intro.universe'));
 });
 
 // 宇宙の歴史 ⇄ 原子の誕生 を同じ時間軸のままズームで行き来する
@@ -682,7 +702,7 @@ zoomBtn.addEventListener('click', () => {
     atomsSlider.value = atomsS;
     universePlaying = false;
     setMode('atoms');
-    introToast('atoms', '🔬 同じ時代のミクロの世界。▶ 再生 で原子ができるまでを見られます');
+    introToast('atoms', t('intro.atoms'));
   } else if (mode === 'atoms') {
     const gyr = Math.min(atomsSliderToYears(atomsS) / 1e9, END_GYR);
     universeS = gyrToSlider(gyr);
@@ -734,7 +754,7 @@ resetBtn.addEventListener('click', () => {
   updateFollowBtn();
   updateTimeDisplay();
   refreshPanel();
-  toast('↺ 最初の状態に戻しました');
+  toast(t('toast.reset'));
 });
 
 clearTrailsBtn.addEventListener('click', () => {
@@ -794,7 +814,7 @@ function formatEarthMass(solarMass) {
 function refreshInfo() {
   const b = solar.getBody(bodySelect.value);
   const sun = solar.bodies[0];
-  const lines = [`<b>${b.name}</b>`];
+  const lines = [`<b>${bodyName(b)}</b>`];
   if (!b.alive) {
     lines.push('💨 いまは存在しません(リセットで復活)');
   } else {
@@ -842,7 +862,7 @@ function refreshPanel() {
       if (other.key === b.key || !other.alive) continue;
       const opt = document.createElement('option');
       opt.value = other.key;
-      opt.textContent = other.name;
+      opt.textContent = bodyName(other);
       swapSelect.appendChild(opt);
     }
     if ([...swapSelect.options].some((o) => o.value === prev)) swapSelect.value = prev;
@@ -859,7 +879,7 @@ sizeSlider.addEventListener('input', () => {
   solar.setSizeScale(key, scale);
   sizeValue.textContent = `×${scale.toFixed(2)}`;
   if (Math.abs(scale - 1) < 0.01) dropEdit(`size:${key}`);
-  else recordEdit(`size:${key}`, `${solar.getBody(key).name}の大きさ ${fmtScale(scale)}`);
+  else recordEdit(`size:${key}`, 'size', { key, x: fmtScale(scale) });
   refreshInfo();
 });
 
@@ -869,7 +889,7 @@ massSlider.addEventListener('input', () => {
   solar.setMassScale(key, scale);
   massValue.textContent = `×${scale.toFixed(2)}`;
   if (Math.abs(scale - 1) < 0.01) dropEdit(`mass:${key}`);
-  else recordEdit(`mass:${key}`, `${solar.getBody(key).name}の重さ ${fmtScale(scale)}`);
+  else recordEdit(`mass:${key}`, 'mass', { key, x: fmtScale(scale) });
   refreshInfo();
 });
 
@@ -878,7 +898,7 @@ distSlider.addEventListener('input', () => {
   const au = Math.pow(10, parseFloat(distSlider.value));
   solar.setDistanceAU(key, au);
   distValue.textContent = `${au.toFixed(2)} AU`;
-  recordEdit(`dist:${key}`, `${solar.getBody(key).name}を ${au.toFixed(2)}AU へ`);
+  recordEdit(`dist:${key}`, 'dist', { key, au: au.toFixed(2) });
   refreshInfo();
 });
 
@@ -891,8 +911,8 @@ exaggSlider.addEventListener('input', () => {
 circularizeBtn.addEventListener('click', () => {
   const b = solar.getBody(bodySelect.value);
   solar.circularize(b.key);
-  recordEdit(`circ:${b.key}`, `${b.name}を円軌道に`);
-  toast(`⭕ ${b.name}を円軌道に乗せました`);
+  recordEdit(`circ:${b.key}`, 'circ', { key: b.key });
+  toast(fmt(t('toast.circ'), { name: bodyName(b) }));
   refreshPanel();
 });
 
@@ -901,8 +921,8 @@ swapBtn.addEventListener('click', () => {
   const b = solar.getBody(swapSelect.value);
   if (!b) return;
   solar.swapBodies(a.key, b.key);
-  recordEdit(`swap:${[a.key, b.key].sort().join('-')}`, `${a.name}⇄${b.name} 入れ替え`);
-  toast(`🔄 ${a.name}と${b.name}の場所を入れ替えました`);
+  recordEdit(`swap:${[a.key, b.key].sort().join('-')}`, 'swap', { key: a.key, key2: b.key });
+  toast(fmt(t('toast.swap'), { name: bodyName(a), name2: bodyName(b) }));
   refreshPanel();
 });
 
@@ -910,8 +930,8 @@ deleteBtn.addEventListener('click', () => {
   const b = solar.getBody(bodySelect.value);
   if (!b.alive) return;
   solar.removeBody(b.key);
-  recordEdit(`del:${b.key}`, `${b.name}を消した`);
-  toast(`🗑 ${b.name}を消しました${b.key === 'sun' ? '(重力が消えて惑星が飛んでいきます)' : ''}`);
+  recordEdit(`del:${b.key}`, 'del', { key: b.key });
+  toast(fmt(t('toast.del'), { name: bodyName(b) }) + (b.key === 'sun' ? t('toast.delSun') : ''));
   refreshPanel();
 });
 
@@ -920,17 +940,17 @@ const PLANET_COLORS = [0x6ab0ff, 0xff9d5c, 0x8de08d, 0xc79bff, 0xff7ab0, 0x57d6c
 let addPlanetCount = 0;
 let addStarCount = 0;
 
-function afterAddBody(b, label) {
-  recordEdit(`add:${b.key}`, label);
+function afterAddBody(b, type) {
+  recordEdit(`add:${b.key}`, type, { key: b.key });
   rebuildBodySelect();
   bodySelect.value = b.key;
   refreshPanel();
-  toast(`➕ ${b.name}を追加しました`);
+  toast(fmt(t('toast.added'), { name: b.name }));
 }
 
 addPlanetBtn.addEventListener('click', () => {
   addPlanetCount++;
-  const name = `新惑星${addPlanetCount}`;
+  const name = fmt(t('body.newPlanet'), { n: addPlanetCount });
   const b = solar.addBody({
     name,
     mass: 3e-6 * (0.5 + Math.random() * 3),       // 地球の0.5〜3.5倍くらい
@@ -939,12 +959,12 @@ addPlanetBtn.addEventListener('click', () => {
     distanceAU: 0.6 + Math.random() * 2.6,
     star: false,
   });
-  afterAddBody(b, `${name}を追加`);
+  afterAddBody(b, 'add');
 });
 
 addStarBtn.addEventListener('click', () => {
   addStarCount++;
-  const name = `太陽${String.fromCharCode(66 + (addStarCount - 1) % 25)}`; // 太陽B, C, …
+  const name = fmt(t('body.newStar'), { n: String.fromCharCode(66 + (addStarCount - 1) % 25) }); // B, C, …
   const b = solar.addBody({
     name,
     mass: 1.0,                                     // 太陽と同じ質量
@@ -953,7 +973,7 @@ addStarBtn.addEventListener('click', () => {
     distanceAU: 4 + Math.random() * 3,
     star: true,
   });
-  afterAddBody(b, `${name}(恒星)を追加`);
+  afterAddBody(b, 'addStar');
 });
 
 // ---------- 追従カメラ ----------
@@ -1036,7 +1056,7 @@ function endPointer(e, cancelled) {
   if (!pointerState || e.pointerId !== pointerState.id) return;
   if (pointerState.dragging) {
     solar.clearTrail(pointerState.key); // 軌跡を引き直す
-    recordEdit(`drag:${pointerState.key}`, `${solar.getBody(pointerState.key).name}を手で移動`);
+    recordEdit(`drag:${pointerState.key}`, 'drag', { key: pointerState.key });
     refreshPanel();
   } else if (!cancelled) {
     // タップ → 天体を選択してパネルを開く
@@ -1195,10 +1215,13 @@ function applyAllI18n() {
   updateFollowBtn();
   renderLog();
   renderScenarioList(); // 実験カードのふりがな/言語を反映
+  relabelBodies();       // 3Dラベルの天体名を反映
+  refreshInfo();         // 天体パネルの情報も
   if (activeScenario) $('scenario-banner-title').innerHTML = `${activeScenario.emoji} ${scTitle(activeScenario)}`;
   if (!shareMenu.classList.contains('hidden')) {
     $('share-preview').textContent = buildShareText();
   }
+  updateTimeDisplay();   // 観察モードの時刻・年代表示も言語反映
   updateTopOffset(); // ヘッダー高さ(ふりがな/言語で変わる)にパネル位置を追従
 }
 
