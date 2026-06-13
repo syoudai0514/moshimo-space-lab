@@ -63,7 +63,7 @@ export class SolarSystem {
   // ---------- 構築 ----------
 
   _createBody(data) {
-    const isSun = data.key === 'sun';
+    const isSun = data.key === 'sun' || data.star === true; // 恒星は自分で光る
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(1, 32, 24),
       isSun
@@ -102,7 +102,7 @@ export class SolarSystem {
     this.scene.add(trail);
 
     // 最初の軌道を薄い円で残しておく(変化の比較用)
-    if (!isSun) {
+    if (!isSun && data.a) {
       const pts = [];
       for (let i = 0; i < 160; i++) {
         const t = (i / 160) * Math.PI * 2;
@@ -167,7 +167,37 @@ export class SolarSystem {
   }
 
   reset() {
+    // 追加した天体(extra)は取り除いて、元の9天体に戻す
+    for (let i = this.bodies.length - 1; i >= 0; i--) {
+      if (this.bodies[i].extra) {
+        this._disposeBody(this.bodies[i]);
+        this.bodies.splice(i, 1);
+      }
+    }
+    this.extraCount = 0;
     this._initState();
+  }
+
+  _disposeBody(b) {
+    this.scene.remove(b.mesh, b.marker, b.label, b.trail);
+  }
+
+  // 新しい天体(惑星 or 恒星)を追加する。中心の太陽(bodies[0])のまわりの
+  // 円軌道に乗せる。star:true なら自分で光る恒星(質量を上げると連星に)。
+  addBody({ name, mass, radiusKm, color, distanceAU = 2, star = false }) {
+    this.extraCount = (this.extraCount || 0) + 1;
+    const key = `extra-${this.extraCount}`;
+    const b = this._createBody({ key, name, radiusKm, mass, color, star });
+    b.extra = true;
+    const sun = this.bodies[0];
+    const ang = Math.random() * Math.PI * 2;
+    const r = distanceAU;
+    const v = Math.sqrt(G * (this.effMass(sun) + mass) / r);
+    b.pos.set(sun.pos.x + Math.cos(ang) * r, 0, sun.pos.z + Math.sin(ang) * r);
+    b.vel.set(sun.vel.x - Math.sin(ang) * v, 0, sun.vel.z + Math.cos(ang) * v);
+    this.bodies.push(b);
+    this._zeroMomentum(); // 系全体が流れていかないように
+    return b;
   }
 
   // ---------- 物理 ----------

@@ -19,7 +19,7 @@
   <meta name="twitter:image" content="https://syoudai0514.github.io/moshimo-space-lab/store/feature-graphic.png">
 
   <!-- ?v= はキャッシュ対策のバージョン番号。デプロイのたびに上げる -->
-  <link rel="stylesheet" href="css/style.css?v=5">
+  <link rel="stylesheet" href="css/style.css?v=6">
   <script type="importmap">
   {
     "imports": {
@@ -144,6 +144,11 @@
 
     <div id="body-info"></div>
 
+    <div class="add-row">
+      <button id="add-planet-btn" class="action secondary">➕ 惑星を追加</button>
+      <button id="add-star-btn" class="action secondary">➕ 太陽を追加</button>
+    </div>
+
     <label class="field">
       <span>大きさ: <b id="size-value">×1.00</b></span>
       <input type="range" id="size-slider" min="-1" max="1.7" step="0.01" value="0">
@@ -201,6 +206,7 @@
         <option value="0.25">3ヶ月/秒</option>
         <option value="1">1年/秒</option>
         <option value="5">5年/秒</option>
+        <option value="10">10年/秒</option>
       </select>
       <select id="galaxy-speed-select" class="hidden">
         <option value="0.1">×0.1</option>
@@ -216,6 +222,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=8"></script>
+  <script type="module" src="js/main.js?v=9"></script>
 </body>
 </html>

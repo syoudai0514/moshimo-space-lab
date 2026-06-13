@@ -545,6 +545,18 @@ html, body {
   color: #ffc9bd;
 }
 
+.add-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.add-row .action {
+  flex: 1;
+  width: auto;
+  margin-bottom: 0;
+}
+
 /* シェアメニュー */
 #share-menu {
   position: fixed;

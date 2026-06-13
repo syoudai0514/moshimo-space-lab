@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createGalaxy, createBackgroundStars } from './galaxy.js?v=2';
-import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=3';
+import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=4';
 import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=2';
 import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=2';
 import { SCENARIOS, EVENT_EXPLAIN, SIM_DISCLAIMER } from './scenarios.js?v=3';
@@ -131,14 +131,22 @@ const swapField = $('swap-field');
 const swapSelect = $('swap-select');
 const swapBtn = $('swap-btn');
 const deleteBtn = $('delete-btn');
+const addPlanetBtn = $('add-planet-btn');
+const addStarBtn = $('add-star-btn');
 
-// 天体セレクトを構築
-for (const b of solar.bodies) {
-  const opt = document.createElement('option');
-  opt.value = b.key;
-  opt.textContent = b.name;
-  bodySelect.appendChild(opt);
+// 天体セレクトを構築(追加・リセットで作り直す)
+function rebuildBodySelect() {
+  const prev = bodySelect.value;
+  bodySelect.innerHTML = '';
+  for (const b of solar.bodies) {
+    const opt = document.createElement('option');
+    opt.value = b.key;
+    opt.textContent = b.name;
+    bodySelect.appendChild(opt);
+  }
+  if ([...bodySelect.options].some((o) => o.value === prev)) bodySelect.value = prev;
 }
+rebuildBodySelect();
 bodySelect.value = 'earth';
 
 // ---------- トースト通知 ----------
@@ -785,6 +793,7 @@ function refreshInfo() {
 }
 
 function refreshPanel() {
+  rebuildBodySelect(); // 追加・リセット後も天体リストを常に同期
   const b = solar.getBody(bodySelect.value);
   sizeSlider.value = Math.log10(b.sizeScale);
   massSlider.value = Math.log10(b.massScale);
@@ -882,6 +891,47 @@ deleteBtn.addEventListener('click', () => {
   recordEdit(`del:${b.key}`, `${b.name}を消した`);
   toast(`🗑 ${b.name}を消しました${b.key === 'sun' ? '(重力が消えて惑星が飛んでいきます)' : ''}`);
   refreshPanel();
+});
+
+// 天体を追加(惑星・恒星を複数にできる)
+const PLANET_COLORS = [0x6ab0ff, 0xff9d5c, 0x8de08d, 0xc79bff, 0xff7ab0, 0x57d6c4, 0xffd76a];
+let addPlanetCount = 0;
+let addStarCount = 0;
+
+function afterAddBody(b, label) {
+  recordEdit(`add:${b.key}`, label);
+  rebuildBodySelect();
+  bodySelect.value = b.key;
+  refreshPanel();
+  toast(`➕ ${b.name}を追加しました`);
+}
+
+addPlanetBtn.addEventListener('click', () => {
+  addPlanetCount++;
+  const name = `新惑星${addPlanetCount}`;
+  const b = solar.addBody({
+    name,
+    mass: 3e-6 * (0.5 + Math.random() * 3),       // 地球の0.5〜3.5倍くらい
+    radiusKm: 5000 + Math.random() * 8000,
+    color: PLANET_COLORS[(addPlanetCount - 1) % PLANET_COLORS.length],
+    distanceAU: 0.6 + Math.random() * 2.6,
+    star: false,
+  });
+  afterAddBody(b, `${name}を追加`);
+});
+
+addStarBtn.addEventListener('click', () => {
+  addStarCount++;
+  const name = `太陽${String.fromCharCode(66 + (addStarCount - 1) % 25)}`; // 太陽B, C, …
+  const b = solar.addBody({
+    name,
+    mass: 1.0,                                     // 太陽と同じ質量
+    radiusKm: 696000,
+    color: 0xffd75e,
+    distanceAU: 4 + Math.random() * 3,
+    star: true,
+  });
+  afterAddBody(b, `${name}(恒星)を追加`);
 });
 
 // ---------- 追従カメラ ----------
