@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { createGalaxy, createBackgroundStars } from './galaxy.js?v=1';
-import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=1';
-import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=1';
-import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=1';
-import { SCENARIOS, EVENT_EXPLAIN, SIM_DISCLAIMER } from './scenarios.js?v=1';
+import { createGalaxy, createBackgroundStars } from './galaxy.js?v=2';
+import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=2';
+import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=2';
+import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=2';
+import { SCENARIOS, EVENT_EXPLAIN, SIM_DISCLAIMER } from './scenarios.js?v=2';
 
 const APP_URL = 'https://syoudai0514.github.io/moshimo-space-lab/';
 
@@ -249,6 +249,7 @@ function endScenario() {
 
 $('lab-toggle').addEventListener('click', () => {
   if (mode !== 'solar') setMode('solar');
+  observeMenu.classList.add('hidden');
   labPanel.classList.toggle('hidden');
 });
 $('lab-close').addEventListener('click', () => labPanel.classList.add('hidden'));
@@ -363,19 +364,27 @@ function formatGalaxyTime(myr) {
 function updateTimeDisplay() {
   if (mode === 'solar') {
     timeDisplay.textContent = formatSolarTime(solar.time);
+    zoomBtn.classList.add('hidden');
   } else if (mode === 'galaxy') {
     timeDisplay.textContent = formatGalaxyTime(galaxyTime);
+    zoomBtn.classList.add('hidden');
   } else if (mode === 'universe') {
     const t = sliderToGyr(universeS);
     timeDisplay.textContent = formatUniverseTime(t);
     const epoch = epochInfo(t);
     epochDisplay.innerHTML = `<b>${epoch.title}</b> ${epoch.desc}`;
+    // 原子が生まれる前後の時代(〜200万年)だけミクロの世界にズームできる
+    const canZoom = t > 0 && t < 0.002;
+    zoomBtn.classList.toggle('hidden', !canZoom);
+    zoomBtn.textContent = '🔬 ミクロの世界を見る(原子ができるまで)';
   } else {
     const t = atomsSliderToYears(atomsS);
     timeDisplay.textContent = formatAtomTime(t);
     const epoch = atomEpochInfo(t);
     epochDisplay.innerHTML = `<b>${epoch.title}</b> ${epoch.desc}`
       + '<br>🔴陽子 ⚪中性子 🔵電子 🟡光';
+    zoomBtn.classList.remove('hidden');
+    zoomBtn.textContent = '🔭 宇宙全体に戻る';
   }
 }
 
@@ -399,10 +408,8 @@ function setMode(next) {
   const isGalaxy = mode === 'galaxy';
   const isUniverse = mode === 'universe';
   const isAtoms = mode === 'atoms';
-  $('tab-solar').classList.toggle('active', isSolar);
-  $('tab-galaxy').classList.toggle('active', isGalaxy);
-  $('tab-universe').classList.toggle('active', isUniverse);
-  $('tab-atoms').classList.toggle('active', isAtoms);
+  $('back-to-lab').classList.toggle('hidden', isSolar);
+  observeMenu.classList.add('hidden');
   solarControls.enabled = isSolar;
   galaxyControls.enabled = isGalaxy;
   universeControls.enabled = isUniverse;
@@ -428,10 +435,72 @@ function setMode(next) {
   updateTimeDisplay();
 }
 
-$('tab-solar').addEventListener('click', () => setMode('solar'));
-$('tab-galaxy').addEventListener('click', () => setMode('galaxy'));
-$('tab-universe').addEventListener('click', () => setMode('universe'));
-$('tab-atoms').addEventListener('click', () => setMode('atoms'));
+// ---------- ナビゲーション(観察モード・ウェルカム) ----------
+const observeMenu = $('observe-menu');
+
+// セッション中はじめて入るモードにだけ、役割の説明を出す
+const introduced = new Set();
+function introToast(key, msg) {
+  if (introduced.has(key)) return;
+  introduced.add(key);
+  toast(msg);
+}
+
+$('back-to-lab').addEventListener('click', () => setMode('solar'));
+
+$('observe-toggle').addEventListener('click', () => {
+  observeMenu.classList.toggle('hidden');
+  labPanel.classList.add('hidden');
+});
+$('observe-close').addEventListener('click', () => observeMenu.classList.add('hidden'));
+
+$('go-galaxy').addEventListener('click', () => {
+  setMode('galaxy');
+  introToast('galaxy', '🌌 実験していた太陽系は、この銀河の片隅(中心から約2.6万光年)にあります');
+});
+
+$('go-universe').addEventListener('click', () => {
+  setMode('universe');
+  introToast('universe', '🌠 宇宙138億年の歴史。▶ 再生 でビッグバンから始まります');
+});
+
+// 宇宙の歴史 ⇄ 原子の誕生 を同じ時間軸のままズームで行き来する
+const zoomBtn = $('zoom-btn');
+zoomBtn.addEventListener('click', () => {
+  if (mode === 'universe') {
+    const years = Math.max(sliderToGyr(universeS) * 1e9, 3e-8); // 1秒未満は1秒に丸める
+    atomsS = THREE.MathUtils.clamp(
+      (Math.log10(years) - ATOM_LOG_MIN) / (ATOM_LOG_MAX - ATOM_LOG_MIN), 0, 1);
+    atomsSlider.value = atomsS;
+    universePlaying = false;
+    setMode('atoms');
+    introToast('atoms', '🔬 同じ時代のミクロの世界。▶ 再生 で原子ができるまでを見られます');
+  } else if (mode === 'atoms') {
+    const gyr = Math.min(atomsSliderToYears(atomsS) / 1e9, END_GYR);
+    universeS = gyrToSlider(gyr);
+    universeSlider.value = universeS;
+    universe.setTime(gyr);
+    atomsPlaying = false;
+    setMode('universe');
+  }
+});
+
+// ---------- ウェルカム画面 ----------
+const welcomeOverlay = $('welcome-overlay');
+if (!localStorage.getItem('mslab-welcome-v1')) {
+  welcomeOverlay.classList.remove('hidden');
+}
+function dismissWelcome(openLab) {
+  localStorage.setItem('mslab-welcome-v1', '1');
+  welcomeOverlay.classList.add('hidden');
+  if (openLab) {
+    if (mode !== 'solar') setMode('solar');
+    labPanel.classList.remove('hidden');
+  }
+}
+$('welcome-start').addEventListener('click', () => dismissWelcome(true));
+$('welcome-free').addEventListener('click', () => dismissWelcome(false));
+$('help-btn').addEventListener('click', () => welcomeOverlay.classList.remove('hidden'));
 
 // ---------- 再生コントロール ----------
 playBtn.addEventListener('click', () => {
