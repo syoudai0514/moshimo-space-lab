@@ -1,0 +1,105 @@
+name: Android Build
+
+# GitHub Actions 上で Android アプリをビルドする。
+#  - 毎回 "デバッグ APK"(署名不要・端末に入れて動作確認できる)を artifact に出力。
+#  - keystore を Secrets に登録してあるときだけ、"署名済みリリース AAB"
+#    (Play Console にアップロードできる形)も出力する。
+#
+# 手元に Android Studio が無くてもビルドできる。実行は Actions タブの
+# "Run workflow"(手動)か、main への push で自動。
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'js/**'
+      - 'css/**'
+      - 'vendor/**'
+      - 'index.html'
+      - 'src/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'capacitor.config.json'
+      - '.github/workflows/android-build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node.js をセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: JDK 21 をセットアップ
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Android SDK をセットアップ
+        uses: android-actions/setup-android@v3
+
+      - name: 依存パッケージをインストール
+        run: npm ci
+
+      - name: Web アセットを組み立てて Android へ同期
+        run: |
+          npm run build:web
+          npx cap sync android
+
+      - name: デバッグ APK をビルド
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: デバッグ APK をアップロード
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      # ---- ここから先は keystore Secrets が登録されているときだけ動く ----
+      - name: 署名 Secrets の有無を判定
+        id: signing
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KS" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ANDROID_KEYSTORE_BASE64 が未設定のため、署名済み AAB はスキップします(デバッグ APK のみ出力)。"
+          fi
+
+      - name: keystore を復元
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: echo "$KS" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: 署名済みリリース AAB をビルド
+        if: steps.signing.outputs.enabled == 'true'
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew bundleRelease --no-daemon
+
+      - name: リリース AAB をアップロード
+        if: steps.signing.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error

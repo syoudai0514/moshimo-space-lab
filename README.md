@@ -22,7 +22,7 @@
 - 「眺める」プラネタリウムではなく「実験する」サンドボックス
 - Google Play での公開を目指して開発中
 
-## 開発
+## 開発(Web 版)
 
 ビルド不要の静的サイト(Three.js 同梱)。
 
@@ -31,12 +31,27 @@ python3 -m http.server 8000
 # → http://localhost:8000
 ```
 
+## Android アプリ版(Capacitor)
+
+Web アプリを Capacitor で Android アプリ化しています。
+ビルド・署名・Google Play 提出の手順は **[RELEASE.md](./RELEASE.md)** を参照。
+
+```bash
+npm install
+npm run sync          # www/ を生成し Android プロジェクトに反映
+npx cap open android  # Android Studio で開く
+```
+
+- 広告(AdMob)などネイティブ専用の処理は `src/native/main.js`(Web 版では読み込まれない)
+- 現在は Google 公式の**テスト広告 ID**。本番 ID への差し替え方は RELEASE.md の手順2
+- ストア掲載文・素材は `store/`、プライバシーポリシーは `privacy.html`
+
 ## ロードマップ
 
 - [x] Phase 1: 実験シナリオ・物理解説・結果シェア・実験の記録
 - [x] Phase 1.5: ナビゲーション再構成(実験室を主役に・観察モード統合・ウェルカム画面・宇宙の歴史⇄原子の誕生のズーム連携)
-- [ ] Phase 2: Capacitor でのAndroidアプリ化、AdMob、ストア素材
-- [ ] Phase 3: Google Play 出品
+- [x] Phase 2: Capacitor でのAndroidアプリ化、AdMob 配線、アイコン/スプラッシュ、ストア素材・プライバシーポリシー
+- [ ] Phase 3: Google Play 出品(実機テスト・署名・AAB アップロード)
 
 ## クレジット
 

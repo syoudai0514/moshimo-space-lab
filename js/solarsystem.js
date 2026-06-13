@@ -63,7 +63,7 @@ export class SolarSystem {
   // ---------- 構築 ----------
 
   _createBody(data) {
-    const isSun = data.key === 'sun';
+    const isSun = data.key === 'sun' || data.star === true; // 恒星は自分で光る
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(1, 32, 24),
       isSun
@@ -102,7 +102,7 @@ export class SolarSystem {
     this.scene.add(trail);
 
     // 最初の軌道を薄い円で残しておく(変化の比較用)
-    if (!isSun) {
+    if (!isSun && data.a) {
       const pts = [];
       for (let i = 0; i < 160; i++) {
         const t = (i / 160) * Math.PI * 2;
@@ -136,6 +136,9 @@ export class SolarSystem {
   // 位置・速度・スケールを初期状態にする
   _initState() {
     this.time = 0;
+    // 太陽を消していた場合に備えて、光と光芒を元に戻す
+    this.glow.visible = true;
+    this.light.intensity = 3;
     const momentum = new THREE.Vector3();
     for (const b of this.bodies) {
       b.massScale = 1;
@@ -164,7 +167,37 @@ export class SolarSystem {
   }
 
   reset() {
+    // 追加した天体(extra)は取り除いて、元の9天体に戻す
+    for (let i = this.bodies.length - 1; i >= 0; i--) {
+      if (this.bodies[i].extra) {
+        this._disposeBody(this.bodies[i]);
+        this.bodies.splice(i, 1);
+      }
+    }
+    this.extraCount = 0;
     this._initState();
+  }
+
+  _disposeBody(b) {
+    this.scene.remove(b.mesh, b.marker, b.label, b.trail);
+  }
+
+  // 新しい天体(惑星 or 恒星)を追加する。中心の太陽(bodies[0])のまわりの
+  // 円軌道に乗せる。star:true なら自分で光る恒星(質量を上げると連星に)。
+  addBody({ name, mass, radiusKm, color, distanceAU = 2, star = false }) {
+    this.extraCount = (this.extraCount || 0) + 1;
+    const key = `extra-${this.extraCount}`;
+    const b = this._createBody({ key, name, radiusKm, mass, color, star });
+    b.extra = true;
+    const sun = this.bodies[0];
+    const ang = Math.random() * Math.PI * 2;
+    const r = distanceAU;
+    const v = Math.sqrt(G * (this.effMass(sun) + mass) / r);
+    b.pos.set(sun.pos.x + Math.cos(ang) * r, 0, sun.pos.z + Math.sin(ang) * r);
+    b.vel.set(sun.vel.x - Math.sin(ang) * v, 0, sun.vel.z + Math.cos(ang) * v);
+    this.bodies.push(b);
+    this._zeroMomentum(); // 系全体が流れていかないように
+    return b;
   }
 
   // ---------- 物理 ----------
@@ -250,6 +283,7 @@ export class SolarSystem {
 
   _checkAbsorption() {
     const sun = this.bodies[0];
+    if (!sun.alive) return; // 太陽を消したら吸収する中心も無い
     // 吸収判定は画面上の太陽の大きさに合わせる(見た目と一致させるため)
     const absorbR = this.physRadiusAU(sun) * this.exaggeration;
     for (const b of this.bodies) {
@@ -260,7 +294,7 @@ export class SolarSystem {
         b.marker.visible = false;
         b.label.visible = false;
         sun.extraMass += this.effMass(b);
-        this.onEvent?.({ type: 'absorbed', msg: `🔥 ${b.name}は太陽に飲み込まれました` });
+        this.onEvent?.({ type: 'absorbed', key: b.key });
       }
     }
   }
@@ -271,7 +305,7 @@ export class SolarSystem {
       if (b.key === 'sun' || !b.alive || b.escaped) continue;
       if (b.pos.distanceTo(sun.pos) > ESCAPE_DIST) {
         b.escaped = true;
-        this.onEvent?.({ type: 'escaped', msg: `🚀 ${b.name}は太陽系のかなたへ飛んでいきました` });
+        this.onEvent?.({ type: 'escaped', key: b.key });
       }
     }
   }
@@ -284,6 +318,32 @@ export class SolarSystem {
 
   setMassScale(key, scale) {
     this.getBody(key).massScale = scale; // 次のステップから重力に反映される
+  }
+
+  // 天体を消す。重力も消えるので、太陽を消すと全惑星が直進し始める。
+  // (リセットで復活)
+  removeBody(key) {
+    const b = this.getBody(key);
+    if (!b.alive) return;
+    b.alive = false;
+    b.mesh.visible = false;
+    b.marker.visible = false;
+    b.label.visible = false;
+    this.clearTrail(key);
+    if (b.key === 'sun') {
+      // 太陽を消したら光と光芒も消す
+      this.glow.visible = false;
+      this.light.intensity = 0;
+    }
+  }
+
+  // 3Dラベルの文字を差し替える(言語切り替え用)
+  setBodyLabel(key, text) {
+    const b = this.getBody(key);
+    if (!b) return;
+    b.label.material.map?.dispose();
+    b.label.material.map = makeLabelTexture(text);
+    b.label.material.needsUpdate = true;
   }
 
   setSizeScale(key, scale) {
@@ -447,7 +507,7 @@ export class SolarSystem {
 
 // ---------- スプライト類 ----------
 
-function makeLabel(text) {
+function makeLabelTexture(text) {
   const c = document.createElement('canvas');
   c.width = 256;
   c.height = 64;
@@ -459,8 +519,12 @@ function makeLabel(text) {
   ctx.shadowBlur = 8;
   ctx.fillStyle = '#dce8ff';
   ctx.fillText(text, 128, 32);
+  return new THREE.CanvasTexture(c);
+}
+
+function makeLabel(text) {
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: new THREE.CanvasTexture(c),
+    map: makeLabelTexture(text),
     transparent: true,
     depthWrite: false,
     sizeAttenuation: false, // どれだけ離れても同じ大きさで表示

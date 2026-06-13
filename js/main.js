@@ -1,10 +1,27 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createGalaxy, createBackgroundStars } from './galaxy.js?v=2';
-import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=2';
-import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=2';
-import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=2';
-import { SCENARIOS, EVENT_EXPLAIN, SIM_DISCLAIMER } from './scenarios.js?v=2';
+import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=5';
+import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=3';
+import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=3';
+import { SCENARIOS } from './scenarios.js?v=3';
+import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=6';
+import { SCENARIO_I18N, OBSERVE_I18N } from './i18n-data.js?v=1';
+import { bgmEnabled, startBGM, toggleBGM, isPlaying as bgmIsPlaying } from './audio.js?v=1';
+
+const SI = (sc) => SCENARIO_I18N[getLang()]?.[sc.id]; // 現在言語の実験翻訳(無ければ undefined)
+// 実験の表示用タイトル・問い。日本語のときは子供向けにふりがな付き。
+const scTitle = (sc) => (getLang() === 'ja' ? furi(SC_FURIGANA[sc.id]?.title ?? sc.title) : (SI(sc)?.title ?? sc.title));
+const scQuestion = (sc) => (getLang() === 'ja' ? furi(SC_FURIGANA[sc.id]?.q ?? sc.question) : (SI(sc)?.q ?? sc.question));
+const scWatch = (sc) => (getLang() === 'ja' ? sc.watch : (SI(sc)?.watch ?? sc.watch));
+const scExplain = (sc) => (getLang() === 'ja' ? sc.explain : (SI(sc)?.explain ?? sc.explain));
+// 共有用(プレーン): タイトル・キャッチコピーを選択言語で
+const scShareTitle = (sc) => (getLang() === 'ja' ? sc.title : (SI(sc)?.title ?? sc.title));
+const scShareLine = (sc) => (getLang() === 'ja' ? sc.shareLine : (SI(sc)?.share ?? sc.shareLine));
+// 天体名(追加天体は生成時の名前、元の9天体は翻訳)
+const bodyName = (b) => (b && b.extra ? b.name : t(`body.${b.key}`));
+// "{x}" を置換する簡易フォーマッタ
+const fmt = (str, obj) => str.replace(/\{(\w+)\}/g, (_, k) => (obj[k] ?? ''));
 
 const APP_URL = 'https://syoudai0514.github.io/moshimo-space-lab/';
 
@@ -130,14 +147,28 @@ const circularizeBtn = $('circularize-btn');
 const swapField = $('swap-field');
 const swapSelect = $('swap-select');
 const swapBtn = $('swap-btn');
+const deleteBtn = $('delete-btn');
+const addPlanetBtn = $('add-planet-btn');
+const addStarBtn = $('add-star-btn');
 
-// 天体セレクトを構築
-for (const b of solar.bodies) {
-  const opt = document.createElement('option');
-  opt.value = b.key;
-  opt.textContent = b.name;
-  bodySelect.appendChild(opt);
+// 天体セレクトを構築(追加・リセットで作り直す)
+function rebuildBodySelect() {
+  const prev = bodySelect.value;
+  bodySelect.innerHTML = '';
+  for (const b of solar.bodies) {
+    const opt = document.createElement('option');
+    opt.value = b.key;
+    opt.textContent = bodyName(b);
+    bodySelect.appendChild(opt);
+  }
+  if ([...bodySelect.options].some((o) => o.value === prev)) bodySelect.value = prev;
 }
+
+// 3Dラベルを現在の言語に更新
+function relabelBodies() {
+  for (const b of solar.bodies) solar.setBodyLabel(b.key, bodyName(b));
+}
+rebuildBodySelect();
 bodySelect.value = 'earth';
 
 // ---------- トースト通知 ----------
@@ -146,7 +177,8 @@ const toasts = $('toasts');
 function toast(ev) {
   const isObj = typeof ev === 'object';
   const msg = isObj ? ev.msg : ev;
-  const explain = isObj ? EVENT_EXPLAIN[ev.type] : null;
+  const type = isObj ? ev.type : null;
+  const explain = type ? { title: t(`event.${type}.title`), body: t(`event.${type}.body`) } : null;
   const div = document.createElement('div');
   div.className = 'toast';
   div.textContent = explain ? `${msg} 💡` : msg;
@@ -164,13 +196,13 @@ function toast(ev) {
 const eventLogEl = $('event-log');
 const eventLog = []; // { time: '+1.2年', msg }
 function logEvent(msg) {
-  eventLog.push({ time: `+${solar.time.toFixed(1)}年`, msg });
+  eventLog.push({ time: `+${solar.time.toFixed(1)}${t('unit.yr')}`, msg });
   if (eventLog.length > 50) eventLog.shift();
   renderLog();
 }
 function renderLog() {
   if (eventLog.length === 0) {
-    eventLogEl.innerHTML = '<p class="hint">まだ記録はありません</p>';
+    eventLogEl.innerHTML = `<p class="hint">${t('lab.logEmpty')}</p>`;
     return;
   }
   eventLogEl.innerHTML = eventLog
@@ -185,17 +217,18 @@ function clearLog() {
 }
 
 solar.onEvent = (ev) => {
-  toast(ev);
-  logEvent(ev.msg);
+  const msg = fmt(t(`event.${ev.type}.msg`), { name: bodyName(solar.getBody(ev.key)) });
+  toast({ type: ev.type, msg });
+  logEvent(msg);
 };
 
 // ---------- 解説モーダル ----------
 const modalOverlay = $('modal-overlay');
 function disclaimerHtml() {
-  return `<div class="disclaimer">${SIM_DISCLAIMER}</div>`;
+  return `<div class="disclaimer">${t('sim.disclaimer')}</div>`;
 }
 function openModal(title, html) {
-  $('modal-title').textContent = title;
+  $('modal-title').innerHTML = title; // ふりがな(ruby)を表示できるよう innerHTML
   $('modal-body').innerHTML = html;
   modalOverlay.classList.remove('hidden');
 }
@@ -210,35 +243,44 @@ const scenarioList = $('scenario-list');
 const scenarioBanner = $('scenario-banner');
 let activeScenario = null;
 
-for (const sc of SCENARIOS) {
-  const btn = document.createElement('button');
-  btn.className = 'scenario-card';
-  btn.dataset.id = sc.id;
-  btn.innerHTML = `<div class="sc-title">${sc.emoji} ${sc.title}</div><div class="sc-q">${sc.question}</div>`;
-  btn.addEventListener('click', () => startScenario(sc));
-  scenarioList.appendChild(btn);
+function renderScenarioList() {
+  scenarioList.innerHTML = '';
+  for (const sc of SCENARIOS) {
+    const btn = document.createElement('button');
+    btn.className = 'scenario-card';
+    btn.dataset.id = sc.id;
+    if (activeScenario && activeScenario.id === sc.id) btn.classList.add('active');
+    btn.innerHTML = `<div class="sc-title">${sc.emoji} ${scTitle(sc)}</div><div class="sc-q">${scQuestion(sc)}</div>`;
+    btn.addEventListener('click', () => startScenario(sc));
+    scenarioList.appendChild(btn);
+  }
 }
+renderScenarioList();
 
 function startScenario(sc) {
   if (mode !== 'solar') setMode('solar');
   solar.reset();
   clearLog();
+  clearEdits();
   followKey = null;
   sc.setup(solar);
   activeScenario = sc;
   speedSelect.value = sc.speed;
   solarPlaying = true;
   labPanel.classList.add('hidden');
-  $('scenario-banner-title').textContent = `${sc.emoji} ${sc.title}`;
+  $('scenario-banner-title').innerHTML = `${sc.emoji} ${scTitle(sc)}`;
   scenarioBanner.classList.remove('hidden');
   for (const el of scenarioList.children) {
     el.classList.toggle('active', el.dataset.id === sc.id);
   }
-  logEvent(`🧪 実験開始: ${sc.title}`);
-  toast('🧪 実験スタート!何が起きるか観察しよう(💡解説 で答え合わせ)');
+  logEvent(fmt(t('toast.expStartLog'), { title: scShareTitle(sc) }));
+  toast(t('toast.expStart'));
   updatePlayBtn();
   refreshPanel();
   updateTimeDisplay();
+  // Android 版のみ: 実験の切り替えタイミングでときどき全画面広告(頻度は内部で制御)。
+  // Web 版では MSLabAds が未定義なので何も起きない。
+  window.MSLabAds?.maybeShowInterstitial?.();
 }
 
 function endScenario() {
@@ -257,9 +299,9 @@ $('lab-close').addEventListener('click', () => labPanel.classList.add('hidden'))
 $('scenario-explain-btn').addEventListener('click', () => {
   if (!activeScenario) return;
   openModal(
-    `${activeScenario.emoji} ${activeScenario.title}`,
-    `<div class="sc-watch">👀 観察ポイント: ${activeScenario.watch}</div>`
-      + activeScenario.explain
+    `${activeScenario.emoji} ${scTitle(activeScenario)}`,
+    `<div class="sc-watch">${t('modal.watch')}${scWatch(activeScenario)}</div>`
+      + scExplain(activeScenario)
       + disclaimerHtml()
   );
 });
@@ -267,19 +309,117 @@ $('scenario-explain-btn').addEventListener('click', () => {
 $('scenario-end-btn').addEventListener('click', () => {
   endScenario();
   solar.reset();
+  clearEdits();
   followKey = null;
   updateFollowBtn();
   refreshPanel();
   updateTimeDisplay();
-  toast('↺ 実験を終了して元に戻しました');
+  toast(t('toast.expEnd'));
 });
 
 // ---------- 結果シェア ----------
-$('share-btn').addEventListener('click', shareResult);
+$('share-btn').addEventListener('click', openShareMenu);
 
-async function shareResult() {
+// ---- 結果の集計(スコア化) ----
+function survivalStats() {
+  let absorbed = 0, escaped = 0, alive = 0, total = 0;
+  for (const b of solar.bodies) {
+    if (b.key === 'sun') continue;
+    total++;
+    if (!b.alive) absorbed++;
+    else if (b.escaped) escaped++;
+    else alive++;
+  }
+  return { total, absorbed, escaped, alive, years: solar.time };
+}
+
+function scoreLine() {
+  const s = survivalStats();
+  return `🏆 ${tPlain('card.survivors')} ${s.alive}/${s.total}　🔥 ${s.absorbed}　🚀 ${s.escaped}`;
+}
+
+function freeOutcomeLine(s) {
+  if (s.absorbed && s.escaped) return t('share.outBoth');
+  if (s.absorbed) return t('share.outAbsorbed');
+  if (s.escaped) return t('share.outEscaped');
+  return t('share.outNone');
+}
+
+// ---- 変更点(レシピ)の記録 ----
+// 他の人がマネしやすいように、ユーザーがいじった内容を覚えておく。
+// 同じ天体への同じ種類の変更は最新の値で上書き(挿入順は保持)。
+const editLog = new Map(); // key -> { type, params }(表示時に現在言語で整形)
+function recordEdit(key, type, params) { editLog.delete(key); editLog.set(key, { type, params: params || {} }); }
+function dropEdit(key) { editLog.delete(key); }
+function clearEdits() { editLog.clear(); }
+function changeSummary() {
+  return [...editLog.values()].map(({ type, params }) => {
+    const p = { ...params };
+    if (p.key != null) p.name = bodyName(solar.getBody(p.key) || { extra: true, name: p.key });
+    if (p.key2 != null) p.name2 = bodyName(solar.getBody(p.key2) || { extra: true, name: p.key2 });
+    return fmt(t(`edit.${type}`), p);
+  });
+}
+function fmtScale(x) { return x >= 10 ? `×${Math.round(x)}` : `×${x.toFixed(2)}`; }
+
+// シェア本文: 結果を文章化 + 変更レシピ + ハッシュタグ + URL(引用したくなる一言を狙う)
+function buildShareText() {
+  const s = survivalStats();
+  const title = activeScenario ? `${activeScenario.emoji} ${scShareTitle(activeScenario)}` : `🪐 ${tPlain('card.free')}`;
+  const outcome = activeScenario ? scShareLine(activeScenario) : freeOutcomeLine(s);
+  const y = s.years.toFixed(1);
+  const result = (s.absorbed || s.escaped)
+    ? fmt(t('share.resultHit'), { y, a: s.absorbed, e: s.escaped, al: s.alive, t: s.total })
+    : fmt(t('share.resultSafe'), { y, t: s.total });
+  const changes = changeSummary();
+  const sep = getLang() === 'ja' ? '、' : ' / ';
+  const recipe = changes.length ? `\n${t('share.recipePrefix')}${changes.slice(0, 4).join(sep)}` : '';
+  return `${title}\n${outcome}\n${result}${recipe}\n\n${t('share.hashtags')}\n${APP_URL}`;
+}
+
+// ---- シェアメニュー ----
+const shareMenu = $('share-menu');
+function openShareMenu() {
+  if (mode !== 'solar') setMode('solar');
+  $('share-preview').textContent = buildShareText();
+  shareMenu.classList.remove('hidden');
+}
+function closeShareMenu() { shareMenu.classList.add('hidden'); }
+$('share-menu-close').addEventListener('click', closeShareMenu);
+$('share-image').addEventListener('click', () => { closeShareMenu(); shareImage(); });
+$('share-video').addEventListener('click', () => { closeShareMenu(); recordClip(); });
+$('share-x').addEventListener('click', () => {
+  window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(buildShareText()), '_blank');
+});
+$('share-line').addEventListener('click', () => {
+  window.open('https://line.me/R/msg/text/?' + encodeURIComponent(buildShareText()), '_blank');
+});
+$('share-copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(buildShareText());
+    toast(t('toast.copyOk'));
+  } catch {
+    toast(t('toast.copyFail'));
+  }
+  closeShareMenu();
+});
+
+// ---- 画像カード ----
+async function shareImage() {
+  const blob = await buildShareCardBlob();
+  const file = new File([blob], 'moshimo-space-lab.png', { type: 'image/png' });
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: tPlain('app.title'), text: buildShareText() });
+    } catch { /* キャンセル */ }
+  } else {
+    downloadBlob(blob, 'moshimo-space-lab.png');
+    toast(t('toast.imgSaved'));
+  }
+}
+
+async function buildShareCardBlob() {
   // 最新フレームを描き直してからキャプチャする
-  // (preserveDrawingBuffer なしでも同じタスク内なら確実に読み取れる)
   renderer.render(solar.scene, solarCam);
 
   const size = 1080;
@@ -290,77 +430,173 @@ async function shareResult() {
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, size, size);
 
-  // 画面をカバー配置で貼り付け
   const src = renderer.domElement;
   const s = Math.max(size / src.width, size / src.height);
   ctx.drawImage(src, (size - src.width * s) / 2, (size - src.height * s) / 2, src.width * s, src.height * s);
 
-  // 上下を暗くして文字を載せる
   let g = ctx.createLinearGradient(0, 0, 0, 230);
   g.addColorStop(0, 'rgba(0,0,8,0.88)');
   g.addColorStop(1, 'rgba(0,0,8,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, size, 230);
-  g = ctx.createLinearGradient(0, size - 330, 0, size);
+  g = ctx.createLinearGradient(0, size - 460, 0, size);
   g.addColorStop(0, 'rgba(0,0,8,0)');
   g.addColorStop(1, 'rgba(0,0,8,0.92)');
   ctx.fillStyle = g;
-  ctx.fillRect(0, size - 330, size, 330);
+  ctx.fillRect(0, size - 460, size, 460);
 
   ctx.fillStyle = '#ffe3b8';
   ctx.font = 'bold 46px sans-serif';
-  ctx.fillText('🧪 もしも宇宙ラボ', 40, 82);
+  ctx.fillText(tPlain('app.title'), 40, 82);
   ctx.fillStyle = '#cfe1ff';
   ctx.font = '32px sans-serif';
-  ctx.fillText(activeScenario ? `${activeScenario.emoji} ${activeScenario.title}` : '自由実験モード', 40, 142);
+  ctx.fillText(activeScenario ? `${activeScenario.emoji} ${scShareTitle(activeScenario)}` : tPlain('card.free'), 40, 142);
 
+  // 下段テキスト: スコア → 経過時間 → 変更点(あれば) or 直近イベント → URL
+  let y = size - 410;
   ctx.fillStyle = '#ffd97a';
-  ctx.font = 'bold 36px sans-serif';
-  ctx.fillText(formatSolarTime(solar.time), 40, size - 230);
+  ctx.font = 'bold 40px sans-serif';
+  ctx.fillText(scoreLine(), 40, y);
+  y += 54;
 
-  ctx.fillStyle = '#dce8ff';
-  ctx.font = '30px sans-serif';
-  const recent = eventLog.filter((e) => !e.msg.startsWith('🧪')).slice(-3);
-  recent.forEach((e, i) => ctx.fillText(`${e.time} ${e.msg}`, 40, size - 170 + i * 44));
+  ctx.fillStyle = '#ffe9c0';
+  ctx.font = 'bold 30px sans-serif';
+  ctx.fillText(formatSolarTime(solar.time), 40, y);
+  y += 50;
+
+  const changes = changeSummary();
+  if (changes.length) {
+    // 「何をいじったか」= 他の人がマネできるレシピ
+    ctx.fillStyle = '#9fe0ff';
+    ctx.font = 'bold 28px sans-serif';
+    ctx.fillText(tPlain('card.changes'), 40, y);
+    y += 40;
+    ctx.fillStyle = '#dce8ff';
+    ctx.font = '27px sans-serif';
+    for (const c of changes.slice(0, 5)) {
+      ctx.fillText('・' + c, 40, y);
+      y += 36;
+    }
+  } else {
+    ctx.fillStyle = '#dce8ff';
+    ctx.font = '30px sans-serif';
+    const recent = eventLog.filter((e) => !e.msg.startsWith('🧪')).slice(-3);
+    recent.forEach((e) => { ctx.fillText(`${e.time} ${e.msg}`, 40, y); y += 42; });
+  }
 
   ctx.fillStyle = '#8fa5cc';
   ctx.font = '26px sans-serif';
-  ctx.fillText(APP_URL, 40, size - 26);
+  ctx.fillText(`${t('share.hashtags').split(' ')[0]}　${APP_URL}`, 40, size - 26);
 
-  const blob = await new Promise((res) => card.toBlob(res, 'image/png'));
-  const file = new File([blob], 'moshimo-space-lab.png', { type: 'image/png' });
-  if (navigator.canShare?.({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], title: 'もしも宇宙ラボ', text: `宇宙で実験してみた! ${APP_URL}` });
-    } catch {
-      /* ユーザーがキャンセル */
-    }
-  } else {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'moshimo-space-lab.png';
-    a.click();
-    URL.revokeObjectURL(a.href);
-    toast('📸 結果カードを画像として保存しました');
+  return new Promise((res) => card.toBlob(res, 'image/png'));
+}
+
+function downloadBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ---- 動画(崩壊クリップ)書き出し ----
+const VIDEO_TYPES = [
+  ['video/webm;codecs=vp9', 'webm'],
+  ['video/webm;codecs=vp8', 'webm'],
+  ['video/webm', 'webm'],
+  ['video/mp4', 'mp4'],
+];
+function pickVideoType() {
+  if (!window.MediaRecorder) return null;
+  for (const [mime, ext] of VIDEO_TYPES) {
+    try { if (MediaRecorder.isTypeSupported(mime)) return { mime, ext }; } catch { /* ignore */ }
   }
+  return null;
+}
+
+const recIndicator = $('rec-indicator');
+let recorder = null;
+const REC_SECONDS = 6;
+
+// キャンバスの映像を数秒録画して、崩壊の「動き」をそのままシェアする。
+// (静止画より圧倒的に伝わる = バズりの本命)
+function recordClip() {
+  if (recorder) { recorder.stop(); return; } // 撮影中にもう一度押したら早めに停止
+  const canStream = typeof renderer.domElement.captureStream === 'function';
+  const vtype = pickVideoType();
+  if (!canStream || !vtype) {
+    toast(t('toast.videoUnsupported'));
+    return;
+  }
+  if (mode !== 'solar') setMode('solar');
+  solarPlaying = true;
+  updatePlayBtn();
+
+  const stream = renderer.domElement.captureStream(30);
+  const chunks = [];
+  try {
+    recorder = new MediaRecorder(stream, { mimeType: vtype.mime, videoBitsPerSecond: 8_000_000 });
+  } catch {
+    recorder = null;
+    toast(t('toast.videoInitFail'));
+    return;
+  }
+  recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+  recorder.onstop = async () => {
+    recorder = null;
+    recIndicator.classList.add('hidden');
+    const blob = new Blob(chunks, { type: vtype.mime });
+    const file = new File([blob], `moshimo-space-lab.${vtype.ext}`, { type: vtype.mime });
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: tPlain('app.title'), text: buildShareText() });
+      } catch { /* キャンセル */ }
+    } else {
+      downloadBlob(blob, `moshimo-space-lab.${vtype.ext}`);
+      toast(t('toast.videoSaved'));
+    }
+  };
+
+  recorder.start();
+  let remain = REC_SECONDS;
+  recIndicator.textContent = `⏺ REC ${remain}`;
+  recIndicator.classList.remove('hidden');
+  toast(t('toast.videoRec'));
+  const iv = setInterval(() => {
+    remain--;
+    recIndicator.textContent = remain > 0 ? `⏺ REC ${remain}` : t('rec.saving');
+    if (remain <= 0) { clearInterval(iv); if (recorder) recorder.stop(); }
+  }, 1000);
 }
 
 // ---------- 時間表示 ----------
 function formatSolarTime(years) {
   const d = new Date(BASE_DATE.getTime() + years * 365.25 * 24 * 3600 * 1000);
-  const dateStr = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
-  return `${dateStr} (+${years.toFixed(2)}年)`;
+  const pad = (n) => String(n).padStart(2, '0');
+  return fmt(t('date.fmt'), {
+    y: d.getFullYear(),
+    m: getLang() === 'ja' ? d.getMonth() + 1 : pad(d.getMonth() + 1),
+    d: getLang() === 'ja' ? d.getDate() : pad(d.getDate()),
+    yr: years.toFixed(2),
+  });
 }
 
 function formatGalaxyTime(myr) {
-  if (Math.abs(myr) < 1) return '現在の銀河系';
-  const abs = Math.abs(myr);
-  const label = abs >= 100
-    ? `${(abs / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}億年`
-    : `${Math.round(abs)}百万年`;
-  return myr > 0 ? `${label}後の銀河系` : `${label}前の銀河系`;
+  const L = getLang();
+  const O = L !== 'ja' ? OBSERVE_I18N[L] : null;
+  if (Math.abs(myr) < 1) return O?.['galaxy.now'] ?? '現在の銀河系';
+  const label = fmtYears(Math.abs(myr) * 1e6); // myr(百万年) → 年
+  const jaTmpl = myr > 0 ? `${label}後の銀河系` : `${label}前の銀河系`;
+  const tmpl = O?.[myr > 0 ? 'galaxy.after' : 'galaxy.before'] ?? jaTmpl;
+  return tmpl.replace(/\{label\}/g, label);
 }
 
+// 観察モードの年代テキストを現在言語で(ja は元の日本語、他は OBSERVE_I18N)
+function epochText(epoch, field) {
+  const L = getLang();
+  if (L === 'ja') return epoch[field];
+  return OBSERVE_I18N[L]?.[`${epoch.id}.${field}`] ?? epoch[field];
+}
 function updateTimeDisplay() {
   if (mode === 'solar') {
     timeDisplay.textContent = formatSolarTime(solar.time);
@@ -369,22 +605,22 @@ function updateTimeDisplay() {
     timeDisplay.textContent = formatGalaxyTime(galaxyTime);
     zoomBtn.classList.add('hidden');
   } else if (mode === 'universe') {
-    const t = sliderToGyr(universeS);
-    timeDisplay.textContent = formatUniverseTime(t);
-    const epoch = epochInfo(t);
-    epochDisplay.innerHTML = `<b>${epoch.title}</b> ${epoch.desc}`;
+    const gyr = sliderToGyr(universeS);
+    timeDisplay.textContent = formatUniverseTime(gyr);
+    const epoch = epochInfo(gyr);
+    epochDisplay.innerHTML = `<b>${epochText(epoch, 'title')}</b> ${epochText(epoch, 'desc')}`;
     // 原子が生まれる前後の時代(〜200万年)だけミクロの世界にズームできる
-    const canZoom = t > 0 && t < 0.002;
+    const canZoom = gyr > 0 && gyr < 0.002;
     zoomBtn.classList.toggle('hidden', !canZoom);
-    zoomBtn.textContent = '🔬 ミクロの世界を見る(原子ができるまで)';
+    zoomBtn.textContent = t('time.zoomMicro');
   } else {
-    const t = atomsSliderToYears(atomsS);
-    timeDisplay.textContent = formatAtomTime(t);
-    const epoch = atomEpochInfo(t);
-    epochDisplay.innerHTML = `<b>${epoch.title}</b> ${epoch.desc}`
-      + '<br>🔴陽子 ⚪中性子 🔵電子 🟡光';
+    const yrs = atomsSliderToYears(atomsS);
+    timeDisplay.textContent = formatAtomTime(yrs);
+    const epoch = atomEpochInfo(yrs);
+    epochDisplay.innerHTML = `<b>${epochText(epoch, 'title')}</b> ${epochText(epoch, 'desc')}`
+      + `<br>${t('atoms.legend')}`;
     zoomBtn.classList.remove('hidden');
-    zoomBtn.textContent = '🔭 宇宙全体に戻る';
+    zoomBtn.textContent = t('time.zoomBack');
   }
 }
 
@@ -398,7 +634,7 @@ function isPlaying() {
 
 function updatePlayBtn() {
   const p = isPlaying();
-  playBtn.textContent = p ? '⏸ 停止' : '▶ 再生';
+  playBtn.innerHTML = p ? t('time.play') : t('time.pause');
   playBtn.classList.toggle('playing', p);
 }
 
@@ -456,12 +692,12 @@ $('observe-close').addEventListener('click', () => observeMenu.classList.add('hi
 
 $('go-galaxy').addEventListener('click', () => {
   setMode('galaxy');
-  introToast('galaxy', '🌌 実験していた太陽系は、この銀河の片隅(中心から約2.6万光年)にあります');
+  introToast('galaxy', t('intro.galaxy'));
 });
 
 $('go-universe').addEventListener('click', () => {
   setMode('universe');
-  introToast('universe', '🌠 宇宙138億年の歴史。▶ 再生 でビッグバンから始まります');
+  introToast('universe', t('intro.universe'));
 });
 
 // 宇宙の歴史 ⇄ 原子の誕生 を同じ時間軸のままズームで行き来する
@@ -474,7 +710,7 @@ zoomBtn.addEventListener('click', () => {
     atomsSlider.value = atomsS;
     universePlaying = false;
     setMode('atoms');
-    introToast('atoms', '🔬 同じ時代のミクロの世界。▶ 再生 で原子ができるまでを見られます');
+    introToast('atoms', t('intro.atoms'));
   } else if (mode === 'atoms') {
     const gyr = Math.min(atomsSliderToYears(atomsS) / 1e9, END_GYR);
     universeS = gyrToSlider(gyr);
@@ -520,12 +756,13 @@ playBtn.addEventListener('click', () => {
 resetBtn.addEventListener('click', () => {
   endScenario();
   clearLog();
+  clearEdits();
   solar.reset();
   followKey = null;
   updateFollowBtn();
   updateTimeDisplay();
   refreshPanel();
-  toast('↺ 最初の状態に戻しました');
+  toast(t('toast.reset'));
 });
 
 clearTrailsBtn.addEventListener('click', () => {
@@ -563,41 +800,52 @@ atomsSlider.addEventListener('input', () => {
 });
 
 // ---------- 天体パネル ----------
-panelToggle.addEventListener('click', () => planetPanel.classList.toggle('hidden'));
+panelToggle.addEventListener('click', () => {
+  const willOpen = planetPanel.classList.contains('hidden');
+  planetPanel.classList.toggle('hidden');
+  // パネルを開くときはシミュレーションを一時停止して、落ち着いて設定できるように
+  if (willOpen && mode === 'solar') {
+    solarPlaying = false;
+    updatePlayBtn();
+  }
+});
 $('panel-close').addEventListener('click', () => planetPanel.classList.add('hidden'));
 
 function formatEarthMass(solarMass) {
   const em = solarMass / EARTH_MASS;
-  if (em >= 10000) return `地球の約${Math.round(em / 1000) * 1000}倍`;
-  if (em >= 10) return `地球の約${Math.round(em)}倍`;
-  if (em >= 0.95 && em < 1.05) return '地球と同じ';
-  return `地球の約${em.toPrecision(2)}倍`;
+  if (em >= 0.95 && em < 1.05) return t('mass.earthSame');
+  let n;
+  if (em >= 10000) n = (Math.round(em / 1000) * 1000).toLocaleString();
+  else if (em >= 10) n = Math.round(em).toLocaleString();
+  else n = em.toPrecision(2);
+  return fmt(t('mass.earthApprox'), { n });
 }
 
 function refreshInfo() {
   const b = solar.getBody(bodySelect.value);
   const sun = solar.bodies[0];
-  const lines = [`<b>${b.name}</b>`];
+  const lines = [`<b>${bodyName(b)}</b>`];
   if (!b.alive) {
-    lines.push('🔥 太陽に飲み込まれました(リセットで復活)');
+    lines.push(t('info.notExist'));
   } else {
-    if (b.escaped) lines.push('🚀 太陽系のかなたへ…');
+    if (b.escaped) lines.push(t('info.escaped'));
     if (b.key !== 'sun') {
       const r = b.pos.distanceTo(sun.pos);
       const v = b.vel.clone().sub(sun.vel).length() * 4.74; // AU/年 → km/s
-      lines.push(`太陽からの距離: ${r.toFixed(2)} AU`);
-      lines.push(`速度: ${v.toFixed(1)} km/s`);
+      lines.push(fmt(t('info.dist'), { r: r.toFixed(2) }));
+      lines.push(fmt(t('info.speed'), { v: v.toFixed(1) }));
     }
     const radiusKm = b.radiusKm * b.sizeScale;
-    lines.push(`半径: ${Math.round(radiusKm).toLocaleString()} km (地球の${(radiusKm / 6371).toPrecision(3)}倍)`);
+    lines.push(fmt(t('info.radius'), { km: Math.round(radiusKm).toLocaleString(), x: (radiusKm / 6371).toPrecision(3) }));
     lines.push(b.key === 'sun'
-      ? `質量: 太陽の${solar.effMass(b).toPrecision(3)}倍`
-      : `質量: ${formatEarthMass(solar.effMass(b))}`);
+      ? fmt(t('info.massSun'), { x: solar.effMass(b).toPrecision(3) })
+      : fmt(t('info.massEarth'), { v: formatEarthMass(solar.effMass(b)) }));
   }
   bodyInfo.innerHTML = lines.join('<br>');
 }
 
 function refreshPanel() {
+  rebuildBodySelect(); // 追加・リセット後も天体リストを常に同期
   const b = solar.getBody(bodySelect.value);
   sizeSlider.value = Math.log10(b.sizeScale);
   massSlider.value = Math.log10(b.massScale);
@@ -610,6 +858,7 @@ function refreshPanel() {
   distField.classList.toggle('hidden', !planetEditable);
   circularizeBtn.classList.toggle('hidden', !planetEditable);
   swapField.classList.toggle('hidden', !b.alive);
+  deleteBtn.classList.toggle('hidden', !b.alive);
   if (planetEditable) {
     const r = b.pos.distanceTo(solar.bodies[0].pos);
     distSlider.value = Math.log10(Math.max(r, 0.05));
@@ -623,7 +872,7 @@ function refreshPanel() {
       if (other.key === b.key || !other.alive) continue;
       const opt = document.createElement('option');
       opt.value = other.key;
-      opt.textContent = other.name;
+      opt.textContent = bodyName(other);
       swapSelect.appendChild(opt);
     }
     if ([...swapSelect.options].some((o) => o.value === prev)) swapSelect.value = prev;
@@ -635,23 +884,31 @@ function refreshPanel() {
 bodySelect.addEventListener('change', refreshPanel);
 
 sizeSlider.addEventListener('input', () => {
+  const key = bodySelect.value;
   const scale = Math.pow(10, parseFloat(sizeSlider.value));
-  solar.setSizeScale(bodySelect.value, scale);
+  solar.setSizeScale(key, scale);
   sizeValue.textContent = `×${scale.toFixed(2)}`;
+  if (Math.abs(scale - 1) < 0.01) dropEdit(`size:${key}`);
+  else recordEdit(`size:${key}`, 'size', { key, x: fmtScale(scale) });
   refreshInfo();
 });
 
 massSlider.addEventListener('input', () => {
+  const key = bodySelect.value;
   const scale = Math.pow(10, parseFloat(massSlider.value));
-  solar.setMassScale(bodySelect.value, scale);
+  solar.setMassScale(key, scale);
   massValue.textContent = `×${scale.toFixed(2)}`;
+  if (Math.abs(scale - 1) < 0.01) dropEdit(`mass:${key}`);
+  else recordEdit(`mass:${key}`, 'mass', { key, x: fmtScale(scale) });
   refreshInfo();
 });
 
 distSlider.addEventListener('input', () => {
+  const key = bodySelect.value;
   const au = Math.pow(10, parseFloat(distSlider.value));
-  solar.setDistanceAU(bodySelect.value, au);
+  solar.setDistanceAU(key, au);
   distValue.textContent = `${au.toFixed(2)} AU`;
+  recordEdit(`dist:${key}`, 'dist', { key, au: au.toFixed(2) });
   refreshInfo();
 });
 
@@ -664,7 +921,8 @@ exaggSlider.addEventListener('input', () => {
 circularizeBtn.addEventListener('click', () => {
   const b = solar.getBody(bodySelect.value);
   solar.circularize(b.key);
-  toast(`⭕ ${b.name}を円軌道に乗せました`);
+  recordEdit(`circ:${b.key}`, 'circ', { key: b.key });
+  toast(fmt(t('toast.circ'), { name: bodyName(b) }));
   refreshPanel();
 });
 
@@ -673,14 +931,65 @@ swapBtn.addEventListener('click', () => {
   const b = solar.getBody(swapSelect.value);
   if (!b) return;
   solar.swapBodies(a.key, b.key);
-  toast(`🔄 ${a.name}と${b.name}の場所を入れ替えました`);
+  recordEdit(`swap:${[a.key, b.key].sort().join('-')}`, 'swap', { key: a.key, key2: b.key });
+  toast(fmt(t('toast.swap'), { name: bodyName(a), name2: bodyName(b) }));
   refreshPanel();
+});
+
+deleteBtn.addEventListener('click', () => {
+  const b = solar.getBody(bodySelect.value);
+  if (!b.alive) return;
+  solar.removeBody(b.key);
+  recordEdit(`del:${b.key}`, 'del', { key: b.key });
+  toast(fmt(t('toast.del'), { name: bodyName(b) }) + (b.key === 'sun' ? t('toast.delSun') : ''));
+  refreshPanel();
+});
+
+// 天体を追加(惑星・恒星を複数にできる)
+const PLANET_COLORS = [0x6ab0ff, 0xff9d5c, 0x8de08d, 0xc79bff, 0xff7ab0, 0x57d6c4, 0xffd76a];
+let addPlanetCount = 0;
+let addStarCount = 0;
+
+function afterAddBody(b, type) {
+  recordEdit(`add:${b.key}`, type, { key: b.key });
+  rebuildBodySelect();
+  bodySelect.value = b.key;
+  refreshPanel();
+  toast(fmt(t('toast.added'), { name: b.name }));
+}
+
+addPlanetBtn.addEventListener('click', () => {
+  addPlanetCount++;
+  const name = fmt(t('body.newPlanet'), { n: addPlanetCount });
+  const b = solar.addBody({
+    name,
+    mass: 3e-6 * (0.5 + Math.random() * 3),       // 地球の0.5〜3.5倍くらい
+    radiusKm: 5000 + Math.random() * 8000,
+    color: PLANET_COLORS[(addPlanetCount - 1) % PLANET_COLORS.length],
+    distanceAU: 0.6 + Math.random() * 2.6,
+    star: false,
+  });
+  afterAddBody(b, 'add');
+});
+
+addStarBtn.addEventListener('click', () => {
+  addStarCount++;
+  const name = fmt(t('body.newStar'), { n: String.fromCharCode(66 + (addStarCount - 1) % 25) }); // B, C, …
+  const b = solar.addBody({
+    name,
+    mass: 1.0,                                     // 太陽と同じ質量
+    radiusKm: 696000,
+    color: 0xffd75e,
+    distanceAU: 4 + Math.random() * 3,
+    star: true,
+  });
+  afterAddBody(b, 'addStar');
 });
 
 // ---------- 追従カメラ ----------
 function updateFollowBtn() {
   const active = followKey !== null && followKey === bodySelect.value;
-  followBtn.textContent = active ? '🎯 追従中 (タップで解除)' : '🎯 この天体を追いかける';
+  followBtn.innerHTML = active ? t('panel.followOn') : t('panel.follow');
   followBtn.classList.toggle('active', active);
 }
 
@@ -723,6 +1032,12 @@ let pointerState = null; // { id, key, downX, downY, dragging, plane }
 
 canvas.addEventListener('pointerdown', (e) => {
   if (mode !== 'solar' || pointerState) return;
+  // アトラクト再生中の最初のタップは「解除」だけに使う(天体を拾わない)。
+  // 実際の解除は document の pointerdown が行う。
+  if (attractMode) return;
+  // メイン画面(3Dビュー)を触ったら天体パネルを閉じる(✕ボタン以外でも閉じられるように)。
+  // この後タップで天体を選んだ場合は pointerup で開き直される。
+  planetPanel.classList.add('hidden');
   const hit = solar.pickBody(solarCam, e.clientX, e.clientY, innerWidth, innerHeight);
   if (!hit) return;
   pointerState = { id: e.pointerId, key: hit.key, downX: e.clientX, downY: e.clientY, dragging: false, plane: null };
@@ -751,6 +1066,7 @@ function endPointer(e, cancelled) {
   if (!pointerState || e.pointerId !== pointerState.id) return;
   if (pointerState.dragging) {
     solar.clearTrail(pointerState.key); // 軌跡を引き直す
+    recordEdit(`drag:${pointerState.key}`, 'drag', { key: pointerState.key });
     refreshPanel();
   } else if (!cancelled) {
     // タップ → 天体を選択してパネルを開く
@@ -764,6 +1080,57 @@ function endPointer(e, cancelled) {
 canvas.addEventListener('pointerup', (e) => endPointer(e, false));
 canvas.addEventListener('pointercancel', (e) => endPointer(e, true));
 
+// ---------- アトラクトモード ----------
+// 初回ロード時、何も操作しないあいだは派手な「もしも」を自動再生し続ける。
+// 流入した人が最初の数秒で「崩壊」を目にして、自分でも触りたくなる導線。
+// 画面に触れる/何か操作した時点で解除され、まっさらな太陽系から遊び始められる。
+const ATTRACT_IDS = ['sun-vanish', 'jupiter-star', 'mars-heavy', 'all-fall', 'jupiter-monster', 'sun-mercury-swap'];
+const ATTRACT_PERIOD = 13; // 秒ごとに次のシナリオへ切り替え
+let attractMode = false;
+let attractTimer = 0;
+let attractIdx = -1;
+
+const attractHint = $('attract-hint');
+
+function startAttract() {
+  attractMode = true;
+  attractHint.classList.remove('hidden');
+  nextAttract();
+}
+
+function nextAttract() {
+  let i;
+  do { i = Math.floor(Math.random() * ATTRACT_IDS.length); }
+  while (i === attractIdx && ATTRACT_IDS.length > 1);
+  attractIdx = i;
+  const sc = SCENARIOS.find((s) => s.id === ATTRACT_IDS[i]);
+  solar.reset();
+  clearLog();
+  if (sc) {
+    sc.setup(solar);
+    speedSelect.value = sc.speed;
+  }
+  solarPlaying = true;
+  attractTimer = 0;
+}
+
+function stopAttract() {
+  if (!attractMode) return;
+  attractMode = false;
+  attractHint.classList.add('hidden');
+  endScenario();
+  solar.reset();
+  clearLog();
+  clearEdits();
+  followKey = null;
+  updateFollowBtn();
+  refreshPanel();
+  updateTimeDisplay();
+}
+
+// どこかを操作したら自動再生を終了(バブリング = 各要素の処理より前に確実に拾う)
+document.addEventListener('pointerdown', () => { if (attractMode) stopAttract(); });
+
 // ---------- メインループ ----------
 const clock = new THREE.Clock();
 let infoTick = 0;
@@ -773,6 +1140,10 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.1);
 
   if (mode === 'solar') {
+    if (attractMode) {
+      attractTimer += dt;
+      if (attractTimer >= ATTRACT_PERIOD) nextAttract();
+    }
     const dragging = pointerState !== null && pointerState.dragging;
     if (solarPlaying && !dragging) {
       solar.advance(parseFloat(speedSelect.value) * dt);
@@ -822,6 +1193,7 @@ function animate() {
 }
 
 window.addEventListener('resize', () => {
+  updateTopOffset();
   renderer.setSize(window.innerWidth, window.innerHeight);
   for (const cam of [solarCam, galaxyCam, universeCam, atomsCam]) {
     cam.aspect = window.innerWidth / window.innerHeight;
@@ -829,7 +1201,73 @@ window.addEventListener('resize', () => {
   }
 });
 
+// ---------- 言語切り替え ----------
+const langSelect = $('lang-select');
+for (const [code, label] of LANGS) {
+  const opt = document.createElement('option');
+  opt.value = code;
+  opt.textContent = label;
+  langSelect.appendChild(opt);
+}
+langSelect.value = getLang();
+document.documentElement.lang = getLang();
+
+// ふりがな ON/OFF トグル(日本語表示のときだけ出す)
+const furiToggle = $('furi-toggle');
+function updateFuriToggle() {
+  const ja = getLang() === 'ja';
+  furiToggle.classList.toggle('hidden', !ja);
+  if (ja) furiToggle.textContent = `${tPlain('furi.label')} ${getFurigana() ? 'ON' : 'OFF'}`;
+}
+furiToggle.addEventListener('click', () => {
+  setFurigana(!getFurigana());
+  applyAllI18n();
+});
+
+// 宇宙っぽいBGM。ボタンでON/OFF、最初の操作で鳴り始める(自動再生制限の回避)。
+const bgmBtn = $('bgm-toggle');
+const updateBgmBtn = () => { bgmBtn.textContent = bgmEnabled() ? '🔊' : '🔇'; };
+updateBgmBtn();
+bgmBtn.addEventListener('click', () => { toggleBGM(); updateBgmBtn(); });
+let bgmAutoStarted = false;
+document.addEventListener('pointerdown', (e) => {
+  if (bgmAutoStarted || (e.target.closest && e.target.closest('#bgm-toggle'))) return;
+  bgmAutoStarted = true;
+  if (bgmEnabled()) startBGM();
+});
+
+// ヘッダーの高さ(言語やふりがなで段数・高さが変わる)に合わせて、
+// 上部に貼り付くパネル類の位置を下げる。これで「天体の設定」等との重なりを防ぐ。
+function updateTopOffset() {
+  const h = document.getElementById('header').offsetHeight || 52;
+  document.documentElement.style.setProperty('--top-offset', `${h + 6}px`);
+}
+
+function applyAllI18n() {
+  applyStaticI18n();
+  updatePlayBtn();
+  updateFollowBtn();
+  renderLog();
+  renderScenarioList(); // 実験カードのふりがな/言語を反映
+  relabelBodies();       // 3Dラベルの天体名を反映
+  refreshInfo();         // 天体パネルの情報も
+  if (activeScenario) $('scenario-banner-title').innerHTML = `${activeScenario.emoji} ${scTitle(activeScenario)}`;
+  if (!shareMenu.classList.contains('hidden')) {
+    $('share-preview').textContent = buildShareText();
+  }
+  updateTimeDisplay();   // 観察モードの時刻・年代表示も言語反映
+  updateFuriToggle();    // ふりがなトグルの表示/ラベル
+  updateTopOffset(); // ヘッダー高さ(ふりがな/言語で変わる)にパネル位置を追従
+}
+
+langSelect.addEventListener('change', () => {
+  setLang(langSelect.value);
+  applyAllI18n();
+});
+
+applyAllI18n();
 refreshPanel();
 setMode('solar');
 updateTimeDisplay();
+startAttract();
 animate();

@@ -1,0 +1,679 @@
+// 多言語(日本語/英語/中国語/韓国語)とふりがな。
+//  - 日本語の値には、子供向けに <ruby> でふりがなを入れている(他言語はプレーン)。
+//  - 値は innerHTML として描画する前提(自前の信頼できる文字列のみ)。
+//  - 取得は t(key): 現在の言語 → 英語 → 日本語 → key の順にフォールバック。
+//    中国語・韓国語でまだ訳していない長い解説は、英語にフォールバックする。
+
+export const LANGS = [
+  ['ja', '日本語'],
+  ['en', 'English'],
+  ['zh', '中文'],
+  ['ko', '한국어'],
+];
+
+// localStorage は Safari のプライベートモード等で例外を投げることがあるので安全に扱う
+function lsGet(k) { try { return typeof localStorage !== 'undefined' ? localStorage.getItem(k) : null; } catch { return null; } }
+function lsSet(k, v) { try { if (typeof localStorage !== 'undefined') localStorage.setItem(k, v); } catch { /* ignore */ } }
+
+let lang = lsGet('mslab-lang') || 'ja';
+export function getLang() { return lang; }
+export function setLang(l) {
+  lang = l;
+  lsSet('mslab-lang', l);
+  if (typeof document !== 'undefined') document.documentElement.lang = l;
+}
+
+export function t(key) {
+  let v;
+  const d = DICT[lang];
+  if (d && d[key] != null) v = d[key];
+  else if (DICT.en[key] != null) v = DICT.en[key];
+  else if (DICT.ja[key] != null) v = DICT.ja[key];
+  else return key;
+  return furi(v);
+}
+
+// ---- ふりがな(振り仮名) ON/OFF ----
+let furigana = lsGet('mslab-furigana') !== '0'; // 既定 ON
+export function getFurigana() { return furigana; }
+export function setFurigana(on) { furigana = !!on; lsSet('mslab-furigana', on ? '1' : '0'); }
+// <ruby> の読み(<rt>)だけを外す。<b>/<br> などは残す。
+function stripRubyOnly(html) { return html.replace(/<rt>.*?<\/rt>/g, '').replace(/<\/?ruby>/g, ''); }
+// 日本語表示でふりがな OFF のとき、読み仮名を外す
+export function furi(html) { return (lang === 'ja' && !furigana) ? stripRubyOnly(html) : html; }
+
+// ふりがな(ruby)を取り除いてプレーンな文字列にする。
+// <option> やキャンバス描画など、HTMLを描画できない場所で使う。
+export function stripRuby(html) {
+  return html.replace(/<rt>.*?<\/rt>/g, '').replace(/<\/?[^>]+>/g, '');
+}
+
+// プレーンテキスト版(ふりがな・タグなし)
+export function tPlain(key) {
+  return stripRuby(t(key));
+}
+
+// 年数を現在言語で整形(観察モード用)。ja/zh/ko は 万/億 区切り、en は million/billion。
+const YEAR_UNITS = {
+  ja: { sec: '秒', min: '分', day: '日', year: '年', man: '万年', oku: '億年' },
+  zh: { sec: '秒', min: '分钟', day: '天', year: '年', man: '万年', oku: '亿年' },
+  ko: { sec: '초', min: '분', day: '일', year: '년', man: '만 년', oku: '억 년' },
+};
+export function fmtYears(yr) {
+  const l = getLang();
+  if (l === 'en') {
+    if (yr >= 1e9) return `${(yr / 1e9).toFixed(1)} billion years`;
+    if (yr >= 1e6) return `${Math.round(yr / 1e6).toLocaleString('en-US')} million years`;
+    if (yr >= 1) return `${Math.round(yr).toLocaleString('en-US')} years`;
+    const d = yr * 365.25;
+    if (d >= 1) return `${Math.round(d)} days`;
+    const sec = yr * 3.156e7;
+    return sec < 120 ? `${Math.max(Math.round(sec), 1)} sec` : `${Math.round(sec / 60)} min`;
+  }
+  const U = YEAR_UNITS[l] || YEAR_UNITS.ja;
+  if (yr >= 1e8) { const oku = yr / 1e8; return `${oku < 10 ? oku.toFixed(1) : oku.toFixed(0)}${U.oku}`; }
+  if (yr >= 1e4) return `${Math.round(yr / 1e4)}${U.man}`;
+  if (yr >= 1) return `${Math.round(yr)}${U.year}`;
+  const d = yr * 365.25;
+  if (d >= 1) return `${Math.round(d)}${U.day}`;
+  const sec = yr * 3.156e7;
+  return sec < 120 ? `${Math.max(Math.round(sec), 1)}${U.sec}` : `${Math.round(sec / 60)}${U.min}`;
+}
+
+const TEMP_UNITS = {
+  ja: { oku: '億℃', man: '万℃', c: '℃', approx: '約' },
+  zh: { oku: '亿℃', man: '万℃', c: '℃', approx: '约' },
+  ko: { oku: '억 ℃', man: '만 ℃', c: '℃', approx: '약 ' },
+};
+export function fmtTemp(T) {
+  const l = getLang();
+  if (l === 'en') {
+    if (T >= 1e9) return `approx. ${(T / 1e9).toFixed(0)} billion °C`;
+    if (T >= 1e6) return `approx. ${Math.round(T / 1e6)} million °C`;
+    return `approx. ${Math.round(T).toLocaleString('en-US')} °C`;
+  }
+  const U = TEMP_UNITS[l] || TEMP_UNITS.ja;
+  if (T >= 1e8) return `${U.approx}${(T / 1e8).toFixed(0)}${U.oku}`;
+  if (T >= 1e4) return `${U.approx}${(T / 1e4).toFixed(0)}${U.man}`;
+  return `${U.approx}${Math.round(T)}${U.c}`;
+}
+
+// data-i18n 属性を持つ要素にまとめて流し込む
+export function applyStaticI18n(root = document) {
+  for (const el of root.querySelectorAll('[data-i18n]')) {
+    const val = t(el.dataset.i18n);
+    // <option> は中の <ruby> を描画できないので、ふりがなを外したテキストを入れる
+    if (el.tagName === 'OPTION') el.textContent = stripRuby(val);
+    else el.innerHTML = val;
+  }
+}
+
+const DICT = {
+  ja: {
+    // --- ヘッダー / タブ ---
+    'app.title': '🧪 もしも<ruby>宇宙<rt>うちゅう</rt></ruby>ラボ',
+    'tab.backToLab': '←&nbsp;<ruby>実験室<rt>じっけんしつ</rt></ruby>',
+    'tab.lab': '🧪&nbsp;<ruby>実験<rt>じっけん</rt></ruby>',
+    'tab.observe': '🔭&nbsp;<ruby>観察<rt>かんさつ</rt></ruby>',
+    // --- ウェルカム ---
+    'welcome.h': '🧪 もしも<ruby>宇宙<rt>うちゅう</rt></ruby>ラボへようこそ',
+    'welcome.p1': 'ここは、<ruby>宇宙<rt>うちゅう</rt></ruby>をいじくり<ruby>倒<rt>たお</rt></ruby>せる<ruby>実験室<rt>じっけんしつ</rt></ruby>。<br>もしも<ruby>太陽<rt>たいよう</rt></ruby>が<ruby>消<rt>き</rt></ruby>えたら? <ruby>木星<rt>もくせい</rt></ruby>が<ruby>恒星<rt>こうせい</rt></ruby>になったら?',
+    'welcome.p2': '<ruby>本物<rt>ほんもの</rt></ruby>の<ruby>重力計算<rt>じゅうりょくけいさん</rt></ruby>で「もしも」を<ruby>試<rt>ため</rt></ruby>して、<br>なぜそうなるのかを<ruby>学<rt>まな</rt></ruby>ぼう。',
+    'welcome.start': '🧪 <ruby>実験<rt>じっけん</rt></ruby>を<ruby>選<rt>えら</rt></ruby>んで<ruby>始<rt>はじ</rt></ruby>める',
+    'welcome.free': '🪐 <ruby>自由<rt>じゆう</rt></ruby>にいじってみる',
+    'welcome.hint': '🔭 <ruby>右上<rt>みぎうえ</rt></ruby>の「<ruby>観察<rt>かんさつ</rt></ruby>」から、<ruby>銀河<rt>ぎんが</rt></ruby>や<ruby>宇宙<rt>うちゅう</rt></ruby>138<ruby>億年<rt>おくねん</rt></ruby>の<ruby>歴史<rt>れきし</rt></ruby>も<ruby>見<rt>み</rt></ruby>られます',
+    // --- 観察メニュー ---
+    'observe.h': '🔭 <ruby>観察<rt>かんさつ</rt></ruby>モード',
+    'observe.hint': '<ruby>実験<rt>じっけん</rt></ruby>の<ruby>舞台<rt>ぶたい</rt></ruby>である<ruby>宇宙<rt>うちゅう</rt></ruby>を、ちがうスケールで<ruby>眺<rt>なが</rt></ruby>める<ruby>資料室<rt>しりょうしつ</rt></ruby>です。',
+    'observe.galaxy.t': '🌌 <ruby>銀河系<rt>ぎんがけい</rt></ruby>',
+    'observe.galaxy.d': '<ruby>実験<rt>じっけん</rt></ruby>していた<ruby>太陽系<rt>たいようけい</rt></ruby>は、この<ruby>天<rt>あま</rt></ruby>の<ruby>川銀河<rt>がわぎんが</rt></ruby>の<ruby>片隅<rt>かたすみ</rt></ruby>にある。±30<ruby>億年<rt>おくねん</rt></ruby>の<ruby>回転<rt>かいてん</rt></ruby>を<ruby>見<rt>み</rt></ruby>る',
+    'observe.universe.t': '🌠 <ruby>宇宙<rt>うちゅう</rt></ruby>の<ruby>歴史<rt>れきし</rt></ruby>',
+    'observe.universe.d': 'ビッグバンから238<ruby>億年<rt>おくねん</rt></ruby>まで。<ruby>原子<rt>げんし</rt></ruby>が<ruby>生<rt>う</rt></ruby>まれる<ruby>前<rt>まえ</rt></ruby>の<ruby>時代<rt>じだい</rt></ruby>には 🔬 でズームインできる',
+    // --- 実験室パネル ---
+    'lab.h': '🧪 もしも<ruby>実験室<rt>じっけんしつ</rt></ruby>',
+    'lab.hint': '<ruby>実験<rt>じっけん</rt></ruby>を<ruby>選<rt>えら</rt></ruby>ぶとシミュレーションが<ruby>始<rt>はじ</rt></ruby>まります。<ruby>何<rt>なに</rt></ruby>が<ruby>起<rt>お</rt></ruby>きるか<ruby>予想<rt>よそう</rt></ruby>してから<ruby>試<rt>ため</rt></ruby>そう。',
+    'lab.logHead': '📜 <ruby>実験<rt>じっけん</rt></ruby>の<ruby>記録<rt>きろく</rt></ruby>',
+    'lab.logEmpty': 'まだ<ruby>記録<rt>きろく</rt></ruby>はありません',
+    // --- 実験バナー ---
+    'banner.explain': '💡 <ruby>解説<rt>かいせつ</rt></ruby>',
+    'banner.end': '✕ <ruby>終了<rt>しゅうりょう</rt></ruby>',
+    // --- 天体パネル ---
+    'panel.toggle': '⚙ <ruby>天体<rt>てんたい</rt></ruby>の<ruby>設定<rt>せってい</rt></ruby>',
+    'panel.h': '<ruby>天体<rt>てんたい</rt></ruby>の<ruby>設定<rt>せってい</rt></ruby>',
+    'panel.select': '<ruby>天体<rt>てんたい</rt></ruby>を<ruby>選択<rt>せんたく</rt></ruby>',
+    'panel.size': '<ruby>大<rt>おお</rt></ruby>きさ',
+    'panel.mass': '<ruby>重<rt>おも</rt></ruby>さ',
+    'panel.dist': '<ruby>太陽<rt>たいよう</rt></ruby>からの<ruby>距離<rt>きょり</rt></ruby>',
+    'panel.editHint': '※ <ruby>重<rt>おも</rt></ruby>さ・<ruby>距離<rt>きょり</rt></ruby>を<ruby>変<rt>か</rt></ruby>えると、その<ruby>瞬間<rt>しゅんかん</rt></ruby>から<ruby>重力<rt>じゅうりょく</rt></ruby>で<ruby>軌道<rt>きどう</rt></ruby>が<ruby>変<rt>か</rt></ruby>わります。<ruby>惑星<rt>わくせい</rt></ruby>は<ruby>直接<rt>ちょくせつ</rt></ruby>ドラッグでも<ruby>動<rt>うご</rt></ruby>かせます',
+    'panel.circularize': '⭕ この<ruby>位置<rt>いち</rt></ruby>で<ruby>円軌道<rt>えんきどう</rt></ruby>に<ruby>乗<rt>の</rt></ruby>せる',
+    'panel.swap': '<ruby>別<rt>べつ</rt></ruby>の<ruby>天体<rt>てんたい</rt></ruby>と<ruby>場所<rt>ばしょ</rt></ruby>を<ruby>入<rt>い</rt></ruby>れ<ruby>替<rt>か</rt></ruby>え (<ruby>太陽<rt>たいよう</rt></ruby>もOK)',
+    'panel.swapBtn': '🔄 <ruby>実行<rt>じっこう</rt></ruby>',
+    'panel.follow': '🎯 この<ruby>天体<rt>てんたい</rt></ruby>を<ruby>追<rt>お</rt></ruby>いかける',
+    'panel.followOn': '🎯 <ruby>追従中<rt>ついじゅうちゅう</rt></ruby> (タップで<ruby>解除<rt>かいじょ</rt></ruby>)',
+    'panel.addPlanet': '➕ <ruby>惑星<rt>わくせい</rt></ruby>を<ruby>追加<rt>ついか</rt></ruby>',
+    'panel.addStar': '➕ <ruby>太陽<rt>たいよう</rt></ruby>を<ruby>追加<rt>ついか</rt></ruby>',
+    'panel.delete': '🗑 この<ruby>天体<rt>てんたい</rt></ruby>を<ruby>消<rt>け</rt></ruby>す',
+    'panel.deleteHint': '※ <ruby>消<rt>け</rt></ruby>すと<ruby>重力<rt>じゅうりょく</rt></ruby>もなくなります。<ruby>太陽<rt>たいよう</rt></ruby>を<ruby>消<rt>け</rt></ruby>すと、すべての<ruby>惑星<rt>わくせい</rt></ruby>がまっすぐ<ruby>飛<rt>と</rt></ruby>んでいきます(リセットで<ruby>復活<rt>ふっかつ</rt></ruby>)',
+    'panel.exagg': '<ruby>表示<rt>ひょうじ</rt></ruby>サイズの<ruby>倍率<rt>ばいりつ</rt></ruby>',
+    'panel.exaggHint': '※ <ruby>太陽<rt>たいよう</rt></ruby>と<ruby>惑星<rt>わくせい</rt></ruby>の<ruby>大<rt>おお</rt></ruby>きさの<ruby>比率<rt>ひりつ</rt></ruby>は<ruby>常<rt>つね</rt></ruby>に<ruby>本物<rt>ほんもの</rt></ruby>どおり。×1にすると<ruby>実際<rt>じっさい</rt></ruby>のスケール<ruby>感<rt>かん</rt></ruby>(<ruby>惑星<rt>わくせい</rt></ruby>はほぼ<ruby>点<rt>てん</rt></ruby>)になります',
+    // --- 時間バー ---
+    'time.zoom': '🔬 ミクロの<ruby>世界<rt>せかい</rt></ruby>を<ruby>見<rt>み</rt></ruby>る',
+    'time.now': '<ruby>現在<rt>げんざい</rt></ruby>',
+    'time.play': '⏸ <ruby>停止<rt>ていし</rt></ruby>',
+    'time.pause': '▶ <ruby>再生<rt>さいせい</rt></ruby>',
+    'time.clearTrails': '🧹 <ruby>軌跡<rt>きせき</rt></ruby>を<ruby>消<rt>け</rt></ruby>す',
+    'time.reset': '↺ リセット',
+    'time.share': '📣 シェア',
+    'time.toNow': '⏺ <ruby>現在<rt>げんざい</rt></ruby>へ',
+    'speed.day': '1<ruby>日<rt>にち</rt></ruby>/<ruby>秒<rt>びょう</rt></ruby>',
+    'speed.week': '1<ruby>週間<rt>しゅうかん</rt></ruby>/<ruby>秒<rt>びょう</rt></ruby>',
+    'speed.month': '1ヶ<ruby>月<rt>げつ</rt></ruby>/<ruby>秒<rt>びょう</rt></ruby>',
+    'speed.3month': '3ヶ<ruby>月<rt>げつ</rt></ruby>/<ruby>秒<rt>びょう</rt></ruby>',
+    'speed.year': '1<ruby>年<rt>ねん</rt></ruby>/<ruby>秒<rt>びょう</rt></ruby>',
+    'speed.5year': '5<ruby>年<rt>ねん</rt></ruby>/<ruby>秒<rt>びょう</rt></ruby>',
+    'speed.10year': '10<ruby>年<rt>ねん</rt></ruby>/<ruby>秒<rt>びょう</rt></ruby>',
+    // --- シェアメニュー ---
+    'share.h': '📣 シェアする',
+    'share.hint': 'いまの<ruby>実験結果<rt>じっけんけっか</rt></ruby>を、SNSや<ruby>友<rt>とも</rt></ruby>だちにシェアできます。',
+    'share.video': '🎬 <ruby>崩壊<rt>ほうかい</rt></ruby>の<ruby>動画<rt>どうが</rt></ruby>を<ruby>撮<rt>と</rt></ruby>る(6<ruby>秒<rt>びょう</rt></ruby>)',
+    'share.image': '📸 <ruby>結果<rt>けっか</rt></ruby>カードを<ruby>画像<rt>がぞう</rt></ruby>で<ruby>保存<rt>ほぞん</rt></ruby>',
+    'share.x': '𝕏 でツイートする',
+    'share.line': 'LINE で<ruby>送<rt>おく</rt></ruby>る',
+    'share.copy': '🔗 テキストをコピー',
+    // --- アトラクト / 録画 ---
+    'attract.hint': '▶ <ruby>自動<rt>じどう</rt></ruby>デモ<ruby>再生中<rt>さいせいちゅう</rt></ruby>　— <ruby>画面<rt>がめん</rt></ruby>をタップで<ruby>操作<rt>そうさ</rt></ruby>スタート',
+    // --- カード / シェア文 ---
+    'card.changes': '🛠 <ruby>変更<rt>へんこう</rt></ruby>した<ruby>点<rt>てん</rt></ruby>',
+    'card.free': '<ruby>自由実験<rt>じゆうじっけん</rt></ruby>モード',
+    'card.survivors': '生存',
+    'share.resultHit': '→ {y}年で 🔥{a}個飲み込み / 🚀{e}個射出（生存 {al}/{t}）',
+    'share.resultSafe': '→ {y}年経過、全{t}惑星が生存中',
+    'share.outBoth': '惑星を飲み込ませたり弾き飛ばしたり、宇宙で大暴れ。',
+    'share.outAbsorbed': '惑星を太陽に飲み込ませてみた。',
+    'share.outEscaped': '惑星を宇宙の彼方へ弾き飛ばしてみた。',
+    'share.outNone': '本物の重力で太陽系をいじって遊べる実験室。',
+    'share.recipePrefix': '🛠 変更: ',
+    'share.hashtags': '#もしも宇宙ラボ #宇宙シミュレーション',
+    'date.fmt': '{y}年{m}月{d}日 (+{yr}年)',
+    'body.sun': '太陽', 'body.mercury': '水星', 'body.venus': '金星', 'body.earth': '地球',
+    'body.mars': '火星', 'body.jupiter': '木星', 'body.saturn': '土星', 'body.uranus': '天王星', 'body.neptune': '海王星',
+    'body.newPlanet': '新惑星{n}', 'body.newStar': '太陽{n}',
+    'edit.size': '{name}の大きさ {x}', 'edit.mass': '{name}の重さ {x}', 'edit.dist': '{name}を {au}AU へ',
+    'edit.circ': '{name}を円軌道に', 'edit.swap': '{name}⇄{name2} 入れ替え', 'edit.drag': '{name}を手で移動',
+    'edit.del': '{name}を消した', 'edit.add': '{name}を追加', 'edit.addStar': '{name}(恒星)を追加',
+    'event.absorbed.msg': '🔥 {name}は太陽に飲み込まれました',
+    'event.escaped.msg': '🚀 {name}は太陽系のかなたへ飛んでいきました',
+    'event.absorbed.title': 'なぜ太陽に飲み込まれた?',
+    'event.absorbed.body': '惑星が安定して回り続けるには、軌道の最も内側の点(<b>近日点</b>)が太陽の表面より外にある必要があります。<br><br>ほかの天体の重力で軌道を曲げられたり、横方向の速度(角運動量)を失ったりすると、楕円がどんどん細長くなり、近日点が太陽の中に入った瞬間に衝突します。<br><br>実際の宇宙でも、恒星に近づきすぎた惑星が潮汐力で引き裂かれて飲み込まれる現場が観測されています。',
+    'event.escaped.title': 'なぜ宇宙の彼方へ飛んでいった?',
+    'event.escaped.body': '天体の速度が<b>脱出速度 v = √(2GM/r)</b> を超えると、軌道は閉じた楕円ではなく開いた双曲線になり、二度と戻ってきません。<br><br>きっかけで多いのは、重い天体のそばを通ったときに軌道が曲げられて加速される<b>スイングバイ(重力アシスト)</b>。探査機ボイジャー1号・2号も、木星と土星のスイングバイで加速して太陽系を脱出していきました。',
+    'sim.disclaimer': '※ このアプリは万有引力(N体問題)だけを計算しています。実際の宇宙で起きる潮汐力による変形・破壊、大気の蒸発、相対論的効果などは含まれていません。',
+    'modal.watch': '👀 観察ポイント: ',
+    'toast.expStart': '🧪 実験スタート!何が起きるか観察しよう(💡解説 で答え合わせ)',
+    'toast.expStartLog': '🧪 実験開始: {title}',
+    'toast.expEnd': '↺ 実験を終了して元に戻しました',
+    'toast.reset': '↺ 最初の状態に戻しました',
+    'toast.copyOk': '🔗 シェア用のテキストをコピーしました',
+    'toast.copyFail': 'コピーできませんでした',
+    'toast.imgSaved': '📸 結果カードを画像として保存しました',
+    'toast.videoUnsupported': 'このブラウザは動画書き出しに未対応です。📸 画像でシェアしてください',
+    'toast.videoInitFail': '動画の初期化に失敗しました。📸 画像でシェアしてください',
+    'toast.videoSaved': '🎬 崩壊の動画を保存しました',
+    'toast.videoRec': '🎬 これから6秒間を録画中…崩壊の瞬間を撮ろう!(もう一度シェアで停止)',
+    'toast.circ': '⭕ {name}を円軌道に乗せました',
+    'toast.swap': '🔄 {name}と{name2}の場所を入れ替えました',
+    'toast.del': '🗑 {name}を消しました',
+    'toast.delSun': '(重力が消えて惑星が飛んでいきます)',
+    'toast.added': '➕ {name}を追加しました',
+    'intro.galaxy': '🌌 実験していた太陽系は、この銀河の片隅(中心から約2.6万光年)にあります',
+    'intro.universe': '🌠 宇宙138億年の歴史。▶ 再生 でビッグバンから始まります',
+    'intro.atoms': '🔬 同じ時代のミクロの世界。▶ 再生 で原子ができるまでを見られます',
+    'time.zoomMicro': '🔬 ミクロの世界を見る(原子ができるまで)',
+    'time.zoomBack': '🔭 宇宙全体に戻る',
+    'atoms.legend': '🔴陽子 ⚪中性子 🔵電子 🟡光',
+    'info.notExist': '💨 いまは存在しません(リセットで復活)',
+    'info.escaped': '🚀 太陽系のかなたへ…',
+    'info.dist': '太陽からの距離: {r} AU',
+    'info.speed': '速度: {v} km/s',
+    'info.radius': '半径: {km} km (地球の{x}倍)',
+    'info.massSun': '質量: 太陽の{x}倍',
+    'info.massEarth': '質量: {v}',
+    'mass.earthApprox': '地球の約{n}倍',
+    'mass.earthSame': '地球と同じ',
+    'rec.saving': '⏺ 保存中…',
+    'furi.label': 'ふりがな',
+    'unit.yr': '年',
+    'lang.label': '🌐 <ruby>言語<rt>げんご</rt></ruby>',
+  },
+
+  en: {
+    'app.title': '🧪 What-If Space Lab',
+    'tab.backToLab': '← Lab',
+    'tab.lab': '🧪 Experiments',
+    'tab.observe': '🔭 Observe',
+    'welcome.h': '🧪 Welcome to What-If Space Lab',
+    'welcome.p1': 'A lab where you can mess with the universe.<br>What if the Sun vanished? What if Jupiter became a star?',
+    'welcome.p2': "Try your “what-ifs” with real gravity physics,<br>and learn why things happen.",
+    'welcome.start': '🧪 Pick an experiment',
+    'welcome.free': '🪐 Just play freely',
+    'welcome.hint': '🔭 From “Observe” (top right) you can also see the galaxy and 13.8 billion years of cosmic history.',
+    'observe.h': '🔭 Observe Mode',
+    'observe.hint': 'A gallery for viewing the universe — the stage of your experiments — at different scales.',
+    'observe.galaxy.t': '🌌 The Galaxy',
+    'observe.galaxy.d': 'The Solar System you experimented on sits in a corner of the Milky Way. See ±3 billion years of rotation.',
+    'observe.universe.t': '🌠 History of the Universe',
+    'observe.universe.d': 'From the Big Bang to 23.8 billion years. Before atoms existed, zoom in with 🔬.',
+    'lab.h': '🧪 What-If Lab',
+    'lab.hint': 'Pick an experiment to start the simulation. Guess what will happen before you try!',
+    'lab.logHead': '📜 Experiment log',
+    'lab.logEmpty': 'No records yet',
+    'banner.explain': '💡 Explain',
+    'banner.end': '✕ End',
+    'panel.toggle': '⚙ Body settings',
+    'panel.h': 'Body settings',
+    'panel.select': 'Select a body',
+    'panel.size': 'Size',
+    'panel.mass': 'Mass',
+    'panel.dist': 'Distance from Sun',
+    'panel.editHint': '※ Changing mass or distance bends the orbit from that instant via gravity. You can also drag planets directly.',
+    'panel.circularize': '⭕ Put into a circular orbit here',
+    'panel.swap': 'Swap places with another body (Sun is OK)',
+    'panel.swapBtn': '🔄 Swap',
+    'panel.follow': '🎯 Follow this body',
+    'panel.followOn': '🎯 Following (tap to stop)',
+    'panel.addPlanet': '➕ Add planet',
+    'panel.addStar': '➕ Add star',
+    'panel.delete': '🗑 Delete this body',
+    'panel.deleteHint': '※ Deleting removes its gravity too. Delete the Sun and every planet flies off in a straight line (Reset to restore).',
+    'panel.exagg': 'Display size multiplier',
+    'panel.exaggHint': '※ The size ratio between Sun and planets is always true to life. At ×1 you get the real scale (planets are nearly dots).',
+    'time.zoom': '🔬 See the micro world',
+    'time.now': 'Now',
+    'time.play': '⏸ Pause',
+    'time.pause': '▶ Play',
+    'time.clearTrails': '🧹 Clear trails',
+    'time.reset': '↺ Reset',
+    'time.share': '📣 Share',
+    'time.toNow': '⏺ To now',
+    'speed.day': '1 day/s',
+    'speed.week': '1 week/s',
+    'speed.month': '1 month/s',
+    'speed.3month': '3 months/s',
+    'speed.year': '1 year/s',
+    'speed.5year': '5 years/s',
+    'speed.10year': '10 years/s',
+    'share.h': '📣 Share',
+    'share.hint': 'Share your current result on social media or with friends.',
+    'share.video': '🎬 Record the collapse (6s)',
+    'share.image': '📸 Save result card image',
+    'share.x': '𝕏 Tweet',
+    'share.line': 'Send on LINE',
+    'share.copy': '🔗 Copy text',
+    'attract.hint': '▶ Auto demo playing — tap the screen to take over',
+    'card.changes': '🛠 What I changed',
+    'card.free': 'Free experiment mode',
+    'card.survivors': 'Survivors',
+    'share.resultHit': '→ in {y} yrs: 🔥{a} swallowed / 🚀{e} ejected (survivors {al}/{t})',
+    'share.resultSafe': '→ after {y} yrs, all {t} planets survive',
+    'share.outBoth': 'Swallowing planets and flinging them away — going wild with the universe.',
+    'share.outAbsorbed': 'Fed a planet to the Sun.',
+    'share.outEscaped': 'Flung a planet into deep space.',
+    'share.outNone': 'A lab where you mess with the Solar System using real gravity.',
+    'share.recipePrefix': '🛠 Changes: ',
+    'share.hashtags': '#WhatIfSpaceLab #SpaceSimulation #physics',
+    'date.fmt': '{y}-{m}-{d} (+{yr} yr)',
+    'body.sun': 'Sun', 'body.mercury': 'Mercury', 'body.venus': 'Venus', 'body.earth': 'Earth',
+    'body.mars': 'Mars', 'body.jupiter': 'Jupiter', 'body.saturn': 'Saturn', 'body.uranus': 'Uranus', 'body.neptune': 'Neptune',
+    'body.newPlanet': 'New Planet {n}', 'body.newStar': 'Star {n}',
+    'edit.size': '{name} size {x}', 'edit.mass': '{name} mass {x}', 'edit.dist': 'Moved {name} to {au} AU',
+    'edit.circ': 'Put {name} on a circular orbit', 'edit.swap': 'Swapped {name} ⇄ {name2}', 'edit.drag': 'Moved {name} by hand',
+    'edit.del': 'Deleted {name}', 'edit.add': 'Added {name}', 'edit.addStar': 'Added {name} (star)',
+    'event.absorbed.msg': '🔥 {name} was swallowed by the Sun',
+    'event.escaped.msg': '🚀 {name} flew off beyond the Solar System',
+    'event.absorbed.title': 'Why was it swallowed by the Sun?',
+    'event.absorbed.body': 'For a planet to keep orbiting stably, the innermost point of its orbit (the <b>perihelion</b>) must lie outside the surface of the Sun.<br><br>When another body’s gravity bends the orbit, or the planet loses its sideways speed (angular momentum), the ellipse grows more and more elongated, and the moment the perihelion enters the Sun, a collision occurs.<br><br>In the real universe, too, astronomers have observed planets that drifted too close to a star being torn apart by tidal forces and swallowed.',
+    'event.escaped.title': 'Why did it fly off into deep space?',
+    'event.escaped.body': 'When a body’s speed exceeds the <b>escape velocity v = √(2GM/r)</b>, its orbit becomes an open hyperbola instead of a closed ellipse, and it never returns.<br><br>The most common trigger is a <b>gravity assist (swing-by)</b>, where passing near a massive body bends and accelerates the orbit. The Voyager 1 and 2 probes also used swing-bys past Jupiter and Saturn to speed up and escape the Solar System.',
+    'sim.disclaimer': '※ This app only calculates gravity (the N-body problem). It does not include deformation or destruction by tidal forces, atmospheric evaporation, relativistic effects, or other phenomena that occur in the real universe.',
+    'modal.watch': '👀 What to watch for: ',
+    'toast.expStart': '🧪 Experiment started! Watch what happens (check your answer with 💡 Explanation)',
+    'toast.expStartLog': '🧪 Experiment started: {title}',
+    'toast.expEnd': '↺ Ended the experiment and restored the original state',
+    'toast.reset': '↺ Reset to the initial state',
+    'toast.copyOk': '🔗 Copied the text to share',
+    'toast.copyFail': 'Could not copy',
+    'toast.imgSaved': '📸 Saved the result card as an image',
+    'toast.videoUnsupported': 'This browser does not support video export. 📸 Please share an image instead',
+    'toast.videoInitFail': 'Failed to initialize the video. 📸 Please share an image instead',
+    'toast.videoSaved': '🎬 Saved the collapse video',
+    'toast.videoRec': '🎬 Recording the next 6 seconds… capture the moment of collapse! (Share again to stop)',
+    'toast.circ': '⭕ Put {name} on a circular orbit',
+    'toast.swap': '🔄 Swapped the places of {name} and {name2}',
+    'toast.del': '🗑 Deleted {name}',
+    'toast.delSun': '(Gravity is gone, so the planets fly away)',
+    'toast.added': '➕ Added {name}',
+    'intro.galaxy': '🌌 The Solar System you were experimenting with sits in a corner of this galaxy (about 26,000 light-years from the center)',
+    'intro.universe': '🌠 The 13.8-billion-year history of the universe. Press ▶ Play to start from the Big Bang',
+    'intro.atoms': '🔬 The micro world of the same era. Press ▶ Play to see how atoms came to be',
+    'time.zoomMicro': '🔬 See the micro world (until atoms form)',
+    'time.zoomBack': '🔭 Back to the whole universe',
+    'atoms.legend': '🔴proton ⚪neutron 🔵electron 🟡light',
+    'info.notExist': '💨 Does not exist now (Reset to restore)',
+    'info.escaped': '🚀 Off beyond the Solar System…',
+    'info.dist': 'Distance from Sun: {r} AU',
+    'info.speed': 'Speed: {v} km/s',
+    'info.radius': 'Radius: {km} km ({x}× Earth)',
+    'info.massSun': 'Mass: {x}× the Sun',
+    'info.massEarth': 'Mass: {v}',
+    'mass.earthApprox': 'about {n}× Earth',
+    'mass.earthSame': 'same as Earth',
+    'rec.saving': '⏺ Saving…',
+    'furi.label': 'Furigana',
+    'unit.yr': ' yr',
+    'lang.label': '🌐 Language',
+  },
+
+  zh: {
+    'app.title': '🧪 假如宇宙实验室',
+    'tab.backToLab': '← 实验室',
+    'tab.lab': '🧪 实验',
+    'tab.observe': '🔭 观察',
+    'welcome.h': '🧪 欢迎来到假如宇宙实验室',
+    'welcome.p1': '这里是可以随意摆弄宇宙的实验室。<br>假如太阳消失了？假如木星变成恒星？',
+    'welcome.p2': '用真实的引力计算尝试各种“假如”，<br>并学习其中的原理。',
+    'welcome.start': '🧪 选择一个实验开始',
+    'welcome.free': '🪐 自由摆弄',
+    'welcome.hint': '🔭 从右上角的“观察”还能看到银河系和宇宙138亿年的历史。',
+    'observe.h': '🔭 观察模式',
+    'observe.hint': '以不同尺度观察作为实验舞台的宇宙的资料室。',
+    'observe.galaxy.t': '🌌 银河系',
+    'observe.galaxy.d': '你实验的太阳系位于银河系的一角。观看±30亿年的旋转。',
+    'observe.universe.t': '🌠 宇宙的历史',
+    'observe.universe.d': '从大爆炸到238亿年。在原子诞生之前的时代，可用🔬放大观察。',
+    'lab.h': '🧪 假如实验室',
+    'lab.hint': '选择实验即可开始模拟。先猜猜会发生什么再试试吧。',
+    'lab.logHead': '📜 实验记录',
+    'lab.logEmpty': '还没有记录',
+    'banner.explain': '💡 讲解',
+    'banner.end': '✕ 结束',
+    'panel.toggle': '⚙ 天体设置',
+    'panel.h': '天体设置',
+    'panel.select': '选择天体',
+    'panel.size': '大小',
+    'panel.mass': '质量',
+    'panel.dist': '与太阳的距离',
+    'panel.editHint': '※ 改变质量或距离后，会立刻通过引力改变轨道。也可以直接拖动行星。',
+    'panel.circularize': '⭕ 在此位置进入圆形轨道',
+    'panel.swap': '与其他天体交换位置（太阳也可以）',
+    'panel.swapBtn': '🔄 执行',
+    'panel.follow': '🎯 跟踪这个天体',
+    'panel.followOn': '🎯 跟踪中（点按解除）',
+    'panel.addPlanet': '➕ 添加行星',
+    'panel.addStar': '➕ 添加太阳',
+    'panel.delete': '🗑 删除这个天体',
+    'panel.deleteHint': '※ 删除后引力也会消失。删除太阳后，所有行星都会径直飞走（重置可恢复）。',
+    'panel.exagg': '显示大小的倍率',
+    'panel.exaggHint': '※ 太阳与行星的大小比例始终真实。设为×1即为真实比例（行星几乎是点）。',
+    'time.zoom': '🔬 看看微观世界',
+    'time.now': '现在',
+    'time.play': '⏸ 暂停',
+    'time.pause': '▶ 播放',
+    'time.clearTrails': '🧹 清除轨迹',
+    'time.reset': '↺ 重置',
+    'time.share': '📣 分享',
+    'time.toNow': '⏺ 回到现在',
+    'speed.day': '1天/秒',
+    'speed.week': '1周/秒',
+    'speed.month': '1个月/秒',
+    'speed.3month': '3个月/秒',
+    'speed.year': '1年/秒',
+    'speed.5year': '5年/秒',
+    'speed.10year': '10年/秒',
+    'share.h': '📣 分享',
+    'share.hint': '可以把当前的实验结果分享到社交网络或发给朋友。',
+    'share.video': '🎬 录制崩坏视频（6秒）',
+    'share.image': '📸 保存结果卡片图片',
+    'share.x': '𝕏 发推',
+    'share.line': '用 LINE 发送',
+    'share.copy': '🔗 复制文本',
+    'attract.hint': '▶ 正在自动演示 — 点按屏幕开始操作',
+    'card.changes': '🛠 改动的地方',
+    'card.free': '自由实验模式',
+    'card.survivors': '存活',
+    'share.resultHit': '→ {y}年内 🔥吞没{a}个 / 🚀射出{e}个（存活 {al}/{t}）',
+    'share.resultSafe': '→ 经过{y}年，全部{t}颗行星都存活',
+    'share.outBoth': '又吞没又弹飞，在宇宙里大闹一场。',
+    'share.outAbsorbed': '把行星喂给了太阳。',
+    'share.outEscaped': '把行星弹飞到了宇宙深处。',
+    'share.outNone': '用真实引力随意摆弄太阳系的实验室。',
+    'share.recipePrefix': '🛠 改动: ',
+    'share.hashtags': '#假如宇宙实验室 #宇宙模拟',
+    'date.fmt': '{y}-{m}-{d} (+{yr}年)',
+    'body.sun': '太阳', 'body.mercury': '水星', 'body.venus': '金星', 'body.earth': '地球',
+    'body.mars': '火星', 'body.jupiter': '木星', 'body.saturn': '土星', 'body.uranus': '天王星', 'body.neptune': '海王星',
+    'body.newPlanet': '新行星{n}', 'body.newStar': '恒星{n}',
+    'edit.size': '{name}的大小 {x}', 'edit.mass': '{name}的质量 {x}', 'edit.dist': '将{name}移到 {au}AU',
+    'edit.circ': '让{name}进入圆轨道', 'edit.swap': '{name}⇄{name2} 互换', 'edit.drag': '手动移动{name}',
+    'edit.del': '删除了{name}', 'edit.add': '添加了{name}', 'edit.addStar': '添加了{name}（恒星）',
+    'event.absorbed.msg': '🔥 {name}被太阳吞没了',
+    'event.escaped.msg': '🚀 {name}飞向了太阳系之外',
+    'event.absorbed.title': '为什么会被太阳吞没？',
+    'event.absorbed.body': '要让行星稳定地持续公转，其轨道最内侧的点（<b>近日点</b>）必须位于太阳表面之外。<br><br>当轨道被其他天体的引力弯曲，或失去横向速度（角动量）时，椭圆会变得越来越细长，一旦近日点进入太阳内部，就会发生碰撞。<br><br>在真实的宇宙中，人们也观测到过于靠近恒星的行星被潮汐力撕碎并吞没的现场。',
+    'event.escaped.title': '为什么会飞向宇宙的远方？',
+    'event.escaped.body': '当天体的速度超过<b>逃逸速度 v = √(2GM/r)</b> 时，轨道就不再是闭合的椭圆，而会变成开放的双曲线，再也不会回来。<br><br>最常见的诱因是经过大质量天体附近时，轨道被弯曲并加速的<b>引力弹弓（引力辅助）</b>。旅行者1号和2号探测器也是借助木星和土星的引力弹弓加速，从而飞出了太阳系。',
+    'sim.disclaimer': '※ 本应用仅计算万有引力（N体问题）。不包含真实宇宙中发生的潮汐力造成的变形与破坏、大气蒸发、相对论效应等。',
+    'modal.watch': '👀 观察要点：',
+    'toast.expStart': '🧪 实验开始！来观察会发生什么吧（用💡解说来对答案）',
+    'toast.expStartLog': '🧪 实验开始：{title}',
+    'toast.expEnd': '↺ 已结束实验并恢复原状',
+    'toast.reset': '↺ 已恢复到最初状态',
+    'toast.copyOk': '🔗 已复制用于分享的文本',
+    'toast.copyFail': '无法复制',
+    'toast.imgSaved': '📸 已将结果卡片保存为图片',
+    'toast.videoUnsupported': '此浏览器不支持视频导出。📸 请改用图片分享',
+    'toast.videoInitFail': '视频初始化失败。📸 请改用图片分享',
+    'toast.videoSaved': '🎬 已保存崩塌的视频',
+    'toast.videoRec': '🎬 正在录制接下来的6秒……拍下崩塌的瞬间吧！（再次点击分享即可停止）',
+    'toast.circ': '⭕ 已让{name}进入圆轨道',
+    'toast.swap': '🔄 已互换{name}和{name2}的位置',
+    'toast.del': '🗑 已删除{name}',
+    'toast.delSun': '（引力消失，行星会飞走）',
+    'toast.added': '➕ 已添加{name}',
+    'intro.galaxy': '🌌 你刚才做实验的太阳系，就位于这个银河系的一隅（距中心约2.6万光年）',
+    'intro.universe': '🌠 宇宙138亿年的历史。点击 ▶ 播放，从大爆炸开始',
+    'intro.atoms': '🔬 同一时代的微观世界。点击 ▶ 播放，即可看到原子的形成过程',
+    'time.zoomMicro': '🔬 看看微观世界(直到原子形成)',
+    'time.zoomBack': '🔭 返回整个宇宙',
+    'atoms.legend': '🔴质子 ⚪中子 🔵电子 🟡光',
+    'info.notExist': '💨 现在不存在（重置可恢复）',
+    'info.escaped': '🚀 飞向太阳系之外…',
+    'info.dist': '与太阳的距离：{r} AU',
+    'info.speed': '速度：{v} km/s',
+    'info.radius': '半径：{km} km（地球的{x}倍）',
+    'info.massSun': '质量：太阳的{x}倍',
+    'info.massEarth': '质量：{v}',
+    'mass.earthApprox': '约{n}倍地球',
+    'mass.earthSame': '与地球相同',
+    'rec.saving': '⏺ 保存中…',
+    'furi.label': '假名',
+    'unit.yr': '年',
+    'lang.label': '🌐 语言',
+  },
+
+  ko: {
+    'app.title': '🧪 만약 우주 연구소',
+    'tab.backToLab': '← 실험실',
+    'tab.lab': '🧪 실험',
+    'tab.observe': '🔭 관찰',
+    'welcome.h': '🧪 만약 우주 연구소에 오신 것을 환영합니다',
+    'welcome.p1': '여기는 우주를 마음껏 주무를 수 있는 실험실.<br>만약 태양이 사라진다면? 목성이 항성이 된다면?',
+    'welcome.p2': '진짜 중력 계산으로 “만약”을 시험해 보고,<br>왜 그렇게 되는지 배워 봐요.',
+    'welcome.start': '🧪 실험을 골라 시작하기',
+    'welcome.free': '🪐 자유롭게 만져보기',
+    'welcome.hint': '🔭 오른쪽 위 “관찰”에서 은하와 우주 138억 년의 역사도 볼 수 있어요.',
+    'observe.h': '🔭 관찰 모드',
+    'observe.hint': '실험의 무대인 우주를 다른 스케일로 바라보는 자료실입니다.',
+    'observe.galaxy.t': '🌌 은하계',
+    'observe.galaxy.d': '실험하던 태양계는 이 은하수의 한구석에 있습니다. ±30억 년의 회전을 보세요.',
+    'observe.universe.t': '🌠 우주의 역사',
+    'observe.universe.d': '빅뱅부터 238억 년까지. 원자가 생기기 전 시대는 🔬로 확대할 수 있어요.',
+    'lab.h': '🧪 만약 실험실',
+    'lab.hint': '실험을 고르면 시뮬레이션이 시작됩니다. 무슨 일이 일어날지 예상해 보고 시험해 봐요.',
+    'lab.logHead': '📜 실험 기록',
+    'lab.logEmpty': '아직 기록이 없습니다',
+    'banner.explain': '💡 해설',
+    'banner.end': '✕ 종료',
+    'panel.toggle': '⚙ 천체 설정',
+    'panel.h': '천체 설정',
+    'panel.select': '천체 선택',
+    'panel.size': '크기',
+    'panel.mass': '질량',
+    'panel.dist': '태양으로부터의 거리',
+    'panel.editHint': '※ 질량·거리를 바꾸면 그 순간부터 중력으로 궤도가 바뀝니다. 행성은 직접 드래그할 수도 있어요.',
+    'panel.circularize': '⭕ 이 위치에서 원궤도에 올리기',
+    'panel.swap': '다른 천체와 위치 교환 (태양도 가능)',
+    'panel.swapBtn': '🔄 실행',
+    'panel.follow': '🎯 이 천체를 따라가기',
+    'panel.followOn': '🎯 추적 중 (탭하면 해제)',
+    'panel.addPlanet': '➕ 행성 추가',
+    'panel.addStar': '➕ 태양 추가',
+    'panel.delete': '🗑 이 천체를 지우기',
+    'panel.deleteHint': '※ 지우면 중력도 사라집니다. 태양을 지우면 모든 행성이 직선으로 날아갑니다(리셋하면 복구).',
+    'panel.exagg': '표시 크기 배율',
+    'panel.exaggHint': '※ 태양과 행성의 크기 비율은 항상 실제 그대로. ×1로 하면 실제 스케일(행성은 거의 점)이 됩니다.',
+    'time.zoom': '🔬 미시 세계 보기',
+    'time.now': '현재',
+    'time.play': '⏸ 정지',
+    'time.pause': '▶ 재생',
+    'time.clearTrails': '🧹 궤적 지우기',
+    'time.reset': '↺ 리셋',
+    'time.share': '📣 공유',
+    'time.toNow': '⏺ 현재로',
+    'speed.day': '1일/초',
+    'speed.week': '1주/초',
+    'speed.month': '1개월/초',
+    'speed.3month': '3개월/초',
+    'speed.year': '1년/초',
+    'speed.5year': '5년/초',
+    'speed.10year': '10년/초',
+    'share.h': '📣 공유하기',
+    'share.hint': '지금의 실험 결과를 SNS나 친구에게 공유할 수 있어요.',
+    'share.video': '🎬 붕괴 영상 찍기(6초)',
+    'share.image': '📸 결과 카드를 이미지로 저장',
+    'share.x': '𝕏 트윗하기',
+    'share.line': 'LINE으로 보내기',
+    'share.copy': '🔗 텍스트 복사',
+    'attract.hint': '▶ 자동 데모 재생 중 — 화면을 탭하면 조작 시작',
+    'card.changes': '🛠 바꾼 점',
+    'card.free': '자유 실험 모드',
+    'card.survivors': '생존',
+    'share.resultHit': '→ {y}년 만에 🔥{a}개 삼킴 / 🚀{e}개 사출 (생존 {al}/{t})',
+    'share.resultSafe': '→ {y}년 경과, {t}개 행성 모두 생존 중',
+    'share.outBoth': '행성을 삼키거나 날려버리며 우주에서 한바탕.',
+    'share.outAbsorbed': '행성을 태양에 삼키게 했다.',
+    'share.outEscaped': '행성을 우주 저편으로 날려버렸다.',
+    'share.outNone': '진짜 중력으로 태양계를 주무르는 실험실.',
+    'share.recipePrefix': '🛠 변경: ',
+    'share.hashtags': '#만약우주연구소 #우주시뮬레이션',
+    'date.fmt': '{y}-{m}-{d} (+{yr}년)',
+    'body.sun': '태양', 'body.mercury': '수성', 'body.venus': '금성', 'body.earth': '지구',
+    'body.mars': '화성', 'body.jupiter': '목성', 'body.saturn': '토성', 'body.uranus': '천왕성', 'body.neptune': '해왕성',
+    'body.newPlanet': '새 행성 {n}', 'body.newStar': '항성 {n}',
+    'edit.size': '{name} 크기 {x}', 'edit.mass': '{name} 질량 {x}', 'edit.dist': '{name}을(를) {au}AU로 이동',
+    'edit.circ': '{name}을(를) 원궤도로', 'edit.swap': '{name}⇄{name2} 교체', 'edit.drag': '{name}을(를) 손으로 이동',
+    'edit.del': '{name}을(를) 삭제', 'edit.add': '{name} 추가', 'edit.addStar': '{name}(항성) 추가',
+    'event.absorbed.msg': '🔥 {name}이(가) 태양에 삼켜졌습니다',
+    'event.escaped.msg': '🚀 {name}이(가) 태양계 저편으로 날아갔습니다',
+    'event.absorbed.title': '왜 태양에 삼켜졌을까?',
+    'event.absorbed.body': '행성이 안정적으로 계속 공전하려면 궤도의 가장 안쪽 지점(<b>근일점</b>)이 태양 표면보다 바깥에 있어야 합니다.<br><br>다른 천체의 중력으로 궤도가 휘거나 가로 방향 속도(각운동량)를 잃으면 타원이 점점 가늘고 길어지고, 근일점이 태양 안으로 들어가는 순간 충돌하게 됩니다.<br><br>실제 우주에서도 항성에 너무 가까이 다가간 행성이 조석력으로 찢겨 삼켜지는 현장이 관측되고 있습니다.',
+    'event.escaped.title': '왜 우주 저편으로 날아갔을까?',
+    'event.escaped.body': '천체의 속도가 <b>탈출 속도 v = √(2GM/r)</b>를 넘으면 궤도는 닫힌 타원이 아니라 열린 쌍곡선이 되어 두 번 다시 돌아오지 않습니다.<br><br>가장 흔한 계기는 무거운 천체 곁을 지날 때 궤도가 휘면서 가속되는 <b>스윙바이(중력 보조)</b>입니다. 보이저 1호와 2호 탐사선도 목성과 토성의 스윙바이로 가속해 태양계를 벗어났습니다.',
+    'sim.disclaimer': '※ 이 앱은 만유인력(N체 문제)만 계산합니다. 실제 우주에서 일어나는 조석력에 의한 변형·파괴, 대기 증발, 상대론적 효과 등은 포함되어 있지 않습니다.',
+    'modal.watch': '👀 관찰 포인트: ',
+    'toast.expStart': '🧪 실험 시작! 무슨 일이 일어나는지 관찰해 보세요 (💡해설로 정답 확인)',
+    'toast.expStartLog': '🧪 실험 시작: {title}',
+    'toast.expEnd': '↺ 실험을 종료하고 원래대로 되돌렸습니다',
+    'toast.reset': '↺ 처음 상태로 되돌렸습니다',
+    'toast.copyOk': '🔗 공유용 텍스트를 복사했습니다',
+    'toast.copyFail': '복사하지 못했습니다',
+    'toast.imgSaved': '📸 결과 카드를 이미지로 저장했습니다',
+    'toast.videoUnsupported': '이 브라우저는 동영상 내보내기를 지원하지 않습니다. 📸 이미지로 공유해 주세요',
+    'toast.videoInitFail': '동영상 초기화에 실패했습니다. 📸 이미지로 공유해 주세요',
+    'toast.videoSaved': '🎬 붕괴 동영상을 저장했습니다',
+    'toast.videoRec': '🎬 지금부터 6초간 녹화 중… 붕괴의 순간을 담아 보세요! (다시 공유하면 정지)',
+    'toast.circ': '⭕ {name}을(를) 원궤도에 올렸습니다',
+    'toast.swap': '🔄 {name}과(와) {name2}의 위치를 바꿨습니다',
+    'toast.del': '🗑 {name}을(를) 삭제했습니다',
+    'toast.delSun': '(중력이 사라져 행성이 날아갑니다)',
+    'toast.added': '➕ {name}을(를) 추가했습니다',
+    'intro.galaxy': '🌌 실험하던 태양계는 이 은하의 한구석(중심에서 약 2.6만 광년)에 있습니다',
+    'intro.universe': '🌠 우주 138억 년의 역사. ▶ 재생으로 빅뱅부터 시작됩니다',
+    'intro.atoms': '🔬 같은 시대의 미시 세계. ▶ 재생으로 원자가 만들어지기까지를 볼 수 있습니다',
+    'time.zoomMicro': '🔬 미시 세계 보기(원자가 생기기까지)',
+    'time.zoomBack': '🔭 우주 전체로 돌아가기',
+    'atoms.legend': '🔴양성자 ⚪중성자 🔵전자 🟡빛',
+    'info.notExist': '💨 지금은 존재하지 않습니다(리셋하면 복구)',
+    'info.escaped': '🚀 태양계 저편으로…',
+    'info.dist': '태양으로부터의 거리: {r} AU',
+    'info.speed': '속도: {v} km/s',
+    'info.radius': '반지름: {km} km (지구의 {x}배)',
+    'info.massSun': '질량: 태양의 {x}배',
+    'info.massEarth': '질량: {v}',
+    'mass.earthApprox': '지구의 약 {n}배',
+    'mass.earthSame': '지구와 같음',
+    'rec.saving': '⏺ 저장 중…',
+    'furi.label': '후리가나',
+    'unit.yr': '년',
+    'lang.label': '🌐 언어',
+  },
+};
+
+// 実験(もしも〜)のふりがな付きタイトル・問い。日本語表示のとき、子供向けに使う。
+// (英・中・韓では使わず、プレーンな日本語タイトルにフォールバックする = 第2弾で翻訳)
+export const SC_FURIGANA = {
+  'sun-vanish': {
+    title: 'もしも<ruby>太陽<rt>たいよう</rt></ruby>が<ruby>消<rt>き</rt></ruby>えたら',
+    q: '<ruby>重力<rt>じゅうりょく</rt></ruby>の<ruby>中心<rt>ちゅうしん</rt></ruby>がなくなったら、<ruby>惑星<rt>わくせい</rt></ruby>はどう<ruby>動<rt>うご</rt></ruby>く?',
+  },
+  'jupiter-star': {
+    title: 'もしも<ruby>木星<rt>もくせい</rt></ruby>が<ruby>恒星<rt>こうせい</rt></ruby>になったら',
+    q: '<ruby>太陽系<rt>たいようけい</rt></ruby>に「2つめの<ruby>太陽<rt>たいよう</rt></ruby>」が<ruby>生<rt>う</rt></ruby>まれたら?',
+  },
+  'earth-stop': {
+    title: 'もしも<ruby>地球<rt>ちきゅう</rt></ruby>が<ruby>公転<rt>こうてん</rt></ruby>をやめたら',
+    q: '<ruby>横向<rt>よこむ</rt></ruby>きの<ruby>速度<rt>そくど</rt></ruby>を<ruby>失<rt>うしな</rt></ruby>った<ruby>地球<rt>ちきゅう</rt></ruby>はどこへ<ruby>行<rt>い</rt></ruby>く?',
+  },
+  'earth-mercury': {
+    title: 'もしも<ruby>地球<rt>ちきゅう</rt></ruby>が<ruby>水星<rt>すいせい</rt></ruby>の<ruby>位置<rt>いち</rt></ruby>にあったら',
+    q: '<ruby>太陽<rt>たいよう</rt></ruby>のすぐそばに<ruby>置<rt>お</rt></ruby>かれた<ruby>地球<rt>ちきゅう</rt></ruby>の「1<ruby>年<rt>ねん</rt></ruby>」は?',
+  },
+  'earth-jupiter': {
+    title: 'もしも<ruby>地球<rt>ちきゅう</rt></ruby>と<ruby>木星<rt>もくせい</rt></ruby>が<ruby>入<rt>い</rt></ruby>れ<ruby>替<rt>か</rt></ruby>わったら',
+    q: '<ruby>軽<rt>かる</rt></ruby>い<ruby>地球<rt>ちきゅう</rt></ruby>が<ruby>木星<rt>もくせい</rt></ruby>の<ruby>軌道<rt>きどう</rt></ruby>に<ruby>乗<rt>の</rt></ruby>ったら、ちゃんと<ruby>回<rt>まわ</rt></ruby>れる?',
+  },
+  'sun-heavy': {
+    title: 'もしも<ruby>太陽<rt>たいよう</rt></ruby>が2<ruby>倍<rt>ばい</rt></ruby><ruby>重<rt>おも</rt></ruby>かったら',
+    q: '<ruby>突然<rt>とつぜん</rt></ruby><ruby>重力<rt>じゅうりょく</rt></ruby>が2<ruby>倍<rt>ばい</rt></ruby>になったら、<ruby>軌道<rt>きどう</rt></ruby>はどう<ruby>変形<rt>へんけい</rt></ruby>する?',
+  },
+  'sun-light': {
+    title: 'もしも<ruby>太陽<rt>たいよう</rt></ruby>が<ruby>半分<rt>はんぶん</rt></ruby>の<ruby>重<rt>おも</rt></ruby>さになったら',
+    q: '<ruby>重力<rt>じゅうりょく</rt></ruby>が<ruby>半分<rt>はんぶん</rt></ruby>になったら、<ruby>惑星<rt>わくせい</rt></ruby>はつなぎ<ruby>止<rt>と</rt></ruby>めておける?',
+  },
+  'mars-heavy': {
+    title: 'もしも<ruby>火星<rt>かせい</rt></ruby>が<ruby>太陽<rt>たいよう</rt></ruby>なみに<ruby>重<rt>おも</rt></ruby>かったら',
+    q: '<ruby>地球<rt>ちきゅう</rt></ruby>のすぐ<ruby>隣<rt>となり</rt></ruby>に<ruby>超重力<rt>ちょうじゅうりょく</rt></ruby>の<ruby>天体<rt>てんたい</rt></ruby>が<ruby>現<rt>あらわ</rt></ruby>れたら?',
+  },
+  'all-fall': {
+    title: 'もしも<ruby>全<rt>ぜん</rt></ruby><ruby>惑星<rt>わくせい</rt></ruby>が<ruby>一斉<rt>いっせい</rt></ruby>に<ruby>止<rt>と</rt></ruby>まったら',
+    q: '8つの<ruby>惑星<rt>わくせい</rt></ruby>すべての<ruby>公転<rt>こうてん</rt></ruby>を<ruby>同時<rt>どうじ</rt></ruby>に<ruby>止<rt>と</rt></ruby>めたら?',
+  },
+  'jupiter-monster': {
+    title: 'もしも<ruby>木星<rt>もくせい</rt></ruby>が3<ruby>万倍<rt>まんばい</rt></ruby><ruby>重<rt>おも</rt></ruby>くなったら',
+    q: '<ruby>木星<rt>もくせい</rt></ruby>が<ruby>太陽<rt>たいよう</rt></ruby>より<ruby>重<rt>おも</rt></ruby>くなったら、<ruby>主役<rt>しゅやく</rt></ruby>はどっち?',
+  },
+  'sun-mercury-swap': {
+    title: 'もしも<ruby>太陽<rt>たいよう</rt></ruby>と<ruby>水星<rt>すいせい</rt></ruby>を<ruby>入<rt>い</rt></ruby>れ<ruby>替<rt>か</rt></ruby>えたら',
+    q: '<ruby>重力<rt>じゅうりょく</rt></ruby>の<ruby>中心<rt>ちゅうしん</rt></ruby>がいきなり<ruby>端<rt>はじ</rt></ruby>っこへ<ruby>飛<rt>と</rt></ruby>んだら?',
+  },
+};
+
