@@ -223,6 +223,7 @@ function startScenario(sc) {
   if (mode !== 'solar') setMode('solar');
   solar.reset();
   clearLog();
+  clearEdits();
   followKey = null;
   sc.setup(solar);
   activeScenario = sc;
@@ -270,6 +271,7 @@ $('scenario-explain-btn').addEventListener('click', () => {
 $('scenario-end-btn').addEventListener('click', () => {
   endScenario();
   solar.reset();
+  clearEdits();
   followKey = null;
   updateFollowBtn();
   refreshPanel();
@@ -305,7 +307,17 @@ function freeOutcomeLine(s) {
   return '本物の重力で太陽系をいじって遊べる実験室。';
 }
 
-// シェア本文: 結果を文章化 + ハッシュタグ + URL(引用したくなる一言を狙う)
+// ---- 変更点(レシピ)の記録 ----
+// 他の人がマネしやすいように、ユーザーがいじった内容を覚えておく。
+// 同じ天体への同じ種類の変更は最新の値で上書き(挿入順は保持)。
+const editLog = new Map(); // key -> 表示テキスト
+function recordEdit(key, text) { editLog.delete(key); editLog.set(key, text); }
+function dropEdit(key) { editLog.delete(key); }
+function clearEdits() { editLog.clear(); }
+function changeSummary() { return [...editLog.values()]; }
+function fmtScale(x) { return x >= 10 ? `×${Math.round(x)}` : `×${x.toFixed(2)}`; }
+
+// シェア本文: 結果を文章化 + 変更レシピ + ハッシュタグ + URL(引用したくなる一言を狙う)
 function buildShareText() {
   const s = survivalStats();
   const title = activeScenario ? `${activeScenario.emoji} ${activeScenario.title}` : '🪐 自由実験モード';
@@ -313,7 +325,9 @@ function buildShareText() {
   const result = (s.absorbed || s.escaped)
     ? `→ ${s.years.toFixed(1)}年で 🔥${s.absorbed}個飲み込み / 🚀${s.escaped}個射出（生存 ${s.alive}/${s.total}）`
     : `→ ${s.years.toFixed(1)}年経過、全${s.total}惑星が生存中`;
-  return `${title}\n${outcome}\n${result}\n\n#もしも宇宙ラボ #宇宙シミュレーション\n${APP_URL}`;
+  const changes = changeSummary();
+  const recipe = changes.length ? `\n🛠 変更: ${changes.slice(0, 4).join('、')}` : '';
+  return `${title}\n${outcome}\n${result}${recipe}\n\n#もしも宇宙ラボ #宇宙シミュレーション\n${APP_URL}`;
 }
 
 // ---- シェアメニュー ----
@@ -378,11 +392,11 @@ async function buildShareCardBlob() {
   g.addColorStop(1, 'rgba(0,0,8,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, size, 230);
-  g = ctx.createLinearGradient(0, size - 360, 0, size);
+  g = ctx.createLinearGradient(0, size - 460, 0, size);
   g.addColorStop(0, 'rgba(0,0,8,0)');
   g.addColorStop(1, 'rgba(0,0,8,0.92)');
   ctx.fillStyle = g;
-  ctx.fillRect(0, size - 360, size, 360);
+  ctx.fillRect(0, size - 460, size, 460);
 
   ctx.fillStyle = '#ffe3b8';
   ctx.font = 'bold 46px sans-serif';
@@ -391,19 +405,37 @@ async function buildShareCardBlob() {
   ctx.font = '32px sans-serif';
   ctx.fillText(activeScenario ? `${activeScenario.emoji} ${activeScenario.title}` : '自由実験モード', 40, 142);
 
-  // スコア(生存・飲み込み・射出)
+  // 下段テキスト: スコア → 経過時間 → 変更点(あれば) or 直近イベント → URL
+  let y = size - 410;
   ctx.fillStyle = '#ffd97a';
   ctx.font = 'bold 40px sans-serif';
-  ctx.fillText(scoreLine(), 40, size - 268);
+  ctx.fillText(scoreLine(), 40, y);
+  y += 54;
 
-  ctx.fillStyle = '#ffd97a';
-  ctx.font = 'bold 32px sans-serif';
-  ctx.fillText(formatSolarTime(solar.time), 40, size - 214);
+  ctx.fillStyle = '#ffe9c0';
+  ctx.font = 'bold 30px sans-serif';
+  ctx.fillText(formatSolarTime(solar.time), 40, y);
+  y += 50;
 
-  ctx.fillStyle = '#dce8ff';
-  ctx.font = '30px sans-serif';
-  const recent = eventLog.filter((e) => !e.msg.startsWith('🧪')).slice(-3);
-  recent.forEach((e, i) => ctx.fillText(`${e.time} ${e.msg}`, 40, size - 156 + i * 42));
+  const changes = changeSummary();
+  if (changes.length) {
+    // 「何をいじったか」= 他の人がマネできるレシピ
+    ctx.fillStyle = '#9fe0ff';
+    ctx.font = 'bold 28px sans-serif';
+    ctx.fillText('🛠 変更した点（マネしてね）', 40, y);
+    y += 40;
+    ctx.fillStyle = '#dce8ff';
+    ctx.font = '27px sans-serif';
+    for (const c of changes.slice(0, 5)) {
+      ctx.fillText('・' + c, 40, y);
+      y += 36;
+    }
+  } else {
+    ctx.fillStyle = '#dce8ff';
+    ctx.font = '30px sans-serif';
+    const recent = eventLog.filter((e) => !e.msg.startsWith('🧪')).slice(-3);
+    recent.forEach((e) => { ctx.fillText(`${e.time} ${e.msg}`, 40, y); y += 42; });
+  }
 
   ctx.fillStyle = '#8fa5cc';
   ctx.font = '26px sans-serif';
@@ -665,6 +697,7 @@ playBtn.addEventListener('click', () => {
 resetBtn.addEventListener('click', () => {
   endScenario();
   clearLog();
+  clearEdits();
   solar.reset();
   followKey = null;
   updateFollowBtn();
@@ -780,23 +813,31 @@ function refreshPanel() {
 bodySelect.addEventListener('change', refreshPanel);
 
 sizeSlider.addEventListener('input', () => {
+  const key = bodySelect.value;
   const scale = Math.pow(10, parseFloat(sizeSlider.value));
-  solar.setSizeScale(bodySelect.value, scale);
+  solar.setSizeScale(key, scale);
   sizeValue.textContent = `×${scale.toFixed(2)}`;
+  if (Math.abs(scale - 1) < 0.01) dropEdit(`size:${key}`);
+  else recordEdit(`size:${key}`, `${solar.getBody(key).name}の大きさ ${fmtScale(scale)}`);
   refreshInfo();
 });
 
 massSlider.addEventListener('input', () => {
+  const key = bodySelect.value;
   const scale = Math.pow(10, parseFloat(massSlider.value));
-  solar.setMassScale(bodySelect.value, scale);
+  solar.setMassScale(key, scale);
   massValue.textContent = `×${scale.toFixed(2)}`;
+  if (Math.abs(scale - 1) < 0.01) dropEdit(`mass:${key}`);
+  else recordEdit(`mass:${key}`, `${solar.getBody(key).name}の重さ ${fmtScale(scale)}`);
   refreshInfo();
 });
 
 distSlider.addEventListener('input', () => {
+  const key = bodySelect.value;
   const au = Math.pow(10, parseFloat(distSlider.value));
-  solar.setDistanceAU(bodySelect.value, au);
+  solar.setDistanceAU(key, au);
   distValue.textContent = `${au.toFixed(2)} AU`;
+  recordEdit(`dist:${key}`, `${solar.getBody(key).name}を ${au.toFixed(2)}AU へ`);
   refreshInfo();
 });
 
@@ -809,6 +850,7 @@ exaggSlider.addEventListener('input', () => {
 circularizeBtn.addEventListener('click', () => {
   const b = solar.getBody(bodySelect.value);
   solar.circularize(b.key);
+  recordEdit(`circ:${b.key}`, `${b.name}を円軌道に`);
   toast(`⭕ ${b.name}を円軌道に乗せました`);
   refreshPanel();
 });
@@ -818,6 +860,7 @@ swapBtn.addEventListener('click', () => {
   const b = solar.getBody(swapSelect.value);
   if (!b) return;
   solar.swapBodies(a.key, b.key);
+  recordEdit(`swap:${[a.key, b.key].sort().join('-')}`, `${a.name}⇄${b.name} 入れ替え`);
   toast(`🔄 ${a.name}と${b.name}の場所を入れ替えました`);
   refreshPanel();
 });
@@ -868,6 +911,9 @@ let pointerState = null; // { id, key, downX, downY, dragging, plane }
 
 canvas.addEventListener('pointerdown', (e) => {
   if (mode !== 'solar' || pointerState) return;
+  // メイン画面(3Dビュー)を触ったら天体パネルを閉じる(✕ボタン以外でも閉じられるように)。
+  // この後タップで天体を選んだ場合は pointerup で開き直される。
+  planetPanel.classList.add('hidden');
   const hit = solar.pickBody(solarCam, e.clientX, e.clientY, innerWidth, innerHeight);
   if (!hit) return;
   pointerState = { id: e.pointerId, key: hit.key, downX: e.clientX, downY: e.clientY, dragging: false, plane: null };
@@ -896,6 +942,7 @@ function endPointer(e, cancelled) {
   if (!pointerState || e.pointerId !== pointerState.id) return;
   if (pointerState.dragging) {
     solar.clearTrail(pointerState.key); // 軌跡を引き直す
+    recordEdit(`drag:${pointerState.key}`, `${solar.getBody(pointerState.key).name}を手で移動`);
     refreshPanel();
   } else if (!cancelled) {
     // タップ → 天体を選択してパネルを開く
