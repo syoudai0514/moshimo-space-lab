@@ -239,6 +239,9 @@ function startScenario(sc) {
   updatePlayBtn();
   refreshPanel();
   updateTimeDisplay();
+  // Android 版のみ: 実験の切り替えタイミングでときどき全画面広告(頻度は内部で制御)。
+  // Web 版では MSLabAds が未定義なので何も起きない。
+  window.MSLabAds?.maybeShowInterstitial?.();
 }
 
 function endScenario() {

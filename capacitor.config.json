@@ -1,0 +1,13 @@
+{
+  "appId": "com.moshimospacelab.app",
+  "appName": "もしも宇宙ラボ",
+  "webDir": "www",
+  "backgroundColor": "#080e1e",
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "backgroundColor": "#080e1e",
+      "showSpinner": false
+    }
+  }
+}
