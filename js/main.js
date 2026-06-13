@@ -7,6 +7,7 @@ import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX 
 import { SCENARIOS } from './scenarios.js?v=3';
 import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=6';
 import { SCENARIO_I18N, OBSERVE_I18N } from './i18n-data.js?v=1';
+import { bgmEnabled, startBGM, toggleBGM, isPlaying as bgmIsPlaying } from './audio.js?v=1';
 
 const SI = (sc) => SCENARIO_I18N[getLang()]?.[sc.id]; // 現在言語の実験翻訳(無ければ undefined)
 // 実験の表示用タイトル・問い。日本語のときは子供向けにふりがな付き。
@@ -1221,6 +1222,18 @@ function updateFuriToggle() {
 furiToggle.addEventListener('click', () => {
   setFurigana(!getFurigana());
   applyAllI18n();
+});
+
+// 宇宙っぽいBGM。ボタンでON/OFF、最初の操作で鳴り始める(自動再生制限の回避)。
+const bgmBtn = $('bgm-toggle');
+const updateBgmBtn = () => { bgmBtn.textContent = bgmEnabled() ? '🔊' : '🔇'; };
+updateBgmBtn();
+bgmBtn.addEventListener('click', () => { toggleBGM(); updateBgmBtn(); });
+let bgmAutoStarted = false;
+document.addEventListener('pointerdown', (e) => {
+  if (bgmAutoStarted || (e.target.closest && e.target.closest('#bgm-toggle'))) return;
+  bgmAutoStarted = true;
+  if (bgmEnabled()) startBGM();
 });
 
 // ヘッダーの高さ(言語やふりがなで段数・高さが変わる)に合わせて、
