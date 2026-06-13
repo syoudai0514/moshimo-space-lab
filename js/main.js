@@ -5,7 +5,11 @@ import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=4';
 import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=2';
 import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=2';
 import { SCENARIOS, EVENT_EXPLAIN, SIM_DISCLAIMER } from './scenarios.js?v=3';
-import { LANGS, getLang, setLang, t, applyStaticI18n } from './i18n.js?v=1';
+import { LANGS, getLang, setLang, t, applyStaticI18n, SC_FURIGANA } from './i18n.js?v=2';
+
+// 実験の表示用タイトル・問い。日本語のときは子供向けにふりがな付き。
+const scTitle = (sc) => (getLang() === 'ja' ? (SC_FURIGANA[sc.id]?.title ?? sc.title) : sc.title);
+const scQuestion = (sc) => (getLang() === 'ja' ? (SC_FURIGANA[sc.id]?.q ?? sc.question) : sc.question);
 
 const APP_URL = 'https://syoudai0514.github.io/moshimo-space-lab/';
 
@@ -220,14 +224,19 @@ const scenarioList = $('scenario-list');
 const scenarioBanner = $('scenario-banner');
 let activeScenario = null;
 
-for (const sc of SCENARIOS) {
-  const btn = document.createElement('button');
-  btn.className = 'scenario-card';
-  btn.dataset.id = sc.id;
-  btn.innerHTML = `<div class="sc-title">${sc.emoji} ${sc.title}</div><div class="sc-q">${sc.question}</div>`;
-  btn.addEventListener('click', () => startScenario(sc));
-  scenarioList.appendChild(btn);
+function renderScenarioList() {
+  scenarioList.innerHTML = '';
+  for (const sc of SCENARIOS) {
+    const btn = document.createElement('button');
+    btn.className = 'scenario-card';
+    btn.dataset.id = sc.id;
+    if (activeScenario && activeScenario.id === sc.id) btn.classList.add('active');
+    btn.innerHTML = `<div class="sc-title">${sc.emoji} ${scTitle(sc)}</div><div class="sc-q">${scQuestion(sc)}</div>`;
+    btn.addEventListener('click', () => startScenario(sc));
+    scenarioList.appendChild(btn);
+  }
 }
+renderScenarioList();
 
 function startScenario(sc) {
   if (mode !== 'solar') setMode('solar');
@@ -240,7 +249,7 @@ function startScenario(sc) {
   speedSelect.value = sc.speed;
   solarPlaying = true;
   labPanel.classList.add('hidden');
-  $('scenario-banner-title').textContent = `${sc.emoji} ${sc.title}`;
+  $('scenario-banner-title').innerHTML = `${sc.emoji} ${scTitle(sc)}`;
   scenarioBanner.classList.remove('hidden');
   for (const el of scenarioList.children) {
     el.classList.toggle('active', el.dataset.id === sc.id);
@@ -1142,6 +1151,7 @@ function animate() {
 }
 
 window.addEventListener('resize', () => {
+  updateTopOffset();
   renderer.setSize(window.innerWidth, window.innerHeight);
   for (const cam of [solarCam, galaxyCam, universeCam, atomsCam]) {
     cam.aspect = window.innerWidth / window.innerHeight;
@@ -1160,14 +1170,24 @@ for (const [code, label] of LANGS) {
 langSelect.value = getLang();
 document.documentElement.lang = getLang();
 
+// ヘッダーの高さ(言語やふりがなで段数・高さが変わる)に合わせて、
+// 上部に貼り付くパネル類の位置を下げる。これで「天体の設定」等との重なりを防ぐ。
+function updateTopOffset() {
+  const h = document.getElementById('header').offsetHeight || 52;
+  document.documentElement.style.setProperty('--top-offset', `${h + 6}px`);
+}
+
 function applyAllI18n() {
   applyStaticI18n();
   updatePlayBtn();
   updateFollowBtn();
   renderLog();
+  renderScenarioList(); // 実験カードのふりがな/言語を反映
+  if (activeScenario) $('scenario-banner-title').innerHTML = `${activeScenario.emoji} ${scTitle(activeScenario)}`;
   if (!shareMenu.classList.contains('hidden')) {
     $('share-preview').textContent = buildShareText();
   }
+  updateTopOffset(); // ヘッダー高さ(ふりがな/言語で変わる)にパネル位置を追従
 }
 
 langSelect.addEventListener('change', () => {

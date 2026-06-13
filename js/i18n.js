@@ -339,3 +339,52 @@ const DICT = {
     'lang.label': '🌐 언어',
   },
 };
+
+// 実験(もしも〜)のふりがな付きタイトル・問い。日本語表示のとき、子供向けに使う。
+// (英・中・韓では使わず、プレーンな日本語タイトルにフォールバックする = 第2弾で翻訳)
+export const SC_FURIGANA = {
+  'sun-vanish': {
+    title: 'もしも<ruby>太陽<rt>たいよう</rt></ruby>が<ruby>消<rt>き</rt></ruby>えたら',
+    q: '<ruby>重力<rt>じゅうりょく</rt></ruby>の<ruby>中心<rt>ちゅうしん</rt></ruby>がなくなったら、<ruby>惑星<rt>わくせい</rt></ruby>はどう<ruby>動<rt>うご</rt></ruby>く?',
+  },
+  'jupiter-star': {
+    title: 'もしも<ruby>木星<rt>もくせい</rt></ruby>が<ruby>恒星<rt>こうせい</rt></ruby>になったら',
+    q: '<ruby>太陽系<rt>たいようけい</rt></ruby>に「2つめの<ruby>太陽<rt>たいよう</rt></ruby>」が<ruby>生<rt>う</rt></ruby>まれたら?',
+  },
+  'earth-stop': {
+    title: 'もしも<ruby>地球<rt>ちきゅう</rt></ruby>が<ruby>公転<rt>こうてん</rt></ruby>をやめたら',
+    q: '<ruby>横向<rt>よこむ</rt></ruby>きの<ruby>速度<rt>そくど</rt></ruby>を<ruby>失<rt>うしな</rt></ruby>った<ruby>地球<rt>ちきゅう</rt></ruby>はどこへ<ruby>行<rt>い</rt></ruby>く?',
+  },
+  'earth-mercury': {
+    title: 'もしも<ruby>地球<rt>ちきゅう</rt></ruby>が<ruby>水星<rt>すいせい</rt></ruby>の<ruby>位置<rt>いち</rt></ruby>にあったら',
+    q: '<ruby>太陽<rt>たいよう</rt></ruby>のすぐそばに<ruby>置<rt>お</rt></ruby>かれた<ruby>地球<rt>ちきゅう</rt></ruby>の「1<ruby>年<rt>ねん</rt></ruby>」は?',
+  },
+  'earth-jupiter': {
+    title: 'もしも<ruby>地球<rt>ちきゅう</rt></ruby>と<ruby>木星<rt>もくせい</rt></ruby>が<ruby>入<rt>い</rt></ruby>れ<ruby>替<rt>か</rt></ruby>わったら',
+    q: '<ruby>軽<rt>かる</rt></ruby>い<ruby>地球<rt>ちきゅう</rt></ruby>が<ruby>木星<rt>もくせい</rt></ruby>の<ruby>軌道<rt>きどう</rt></ruby>に<ruby>乗<rt>の</rt></ruby>ったら、ちゃんと<ruby>回<rt>まわ</rt></ruby>れる?',
+  },
+  'sun-heavy': {
+    title: 'もしも<ruby>太陽<rt>たいよう</rt></ruby>が2<ruby>倍<rt>ばい</rt></ruby><ruby>重<rt>おも</rt></ruby>かったら',
+    q: '<ruby>突然<rt>とつぜん</rt></ruby><ruby>重力<rt>じゅうりょく</rt></ruby>が2<ruby>倍<rt>ばい</rt></ruby>になったら、<ruby>軌道<rt>きどう</rt></ruby>はどう<ruby>変形<rt>へんけい</rt></ruby>する?',
+  },
+  'sun-light': {
+    title: 'もしも<ruby>太陽<rt>たいよう</rt></ruby>が<ruby>半分<rt>はんぶん</rt></ruby>の<ruby>重<rt>おも</rt></ruby>さになったら',
+    q: '<ruby>重力<rt>じゅうりょく</rt></ruby>が<ruby>半分<rt>はんぶん</rt></ruby>になったら、<ruby>惑星<rt>わくせい</rt></ruby>はつなぎ<ruby>止<rt>と</rt></ruby>めておける?',
+  },
+  'mars-heavy': {
+    title: 'もしも<ruby>火星<rt>かせい</rt></ruby>が<ruby>太陽<rt>たいよう</rt></ruby>なみに<ruby>重<rt>おも</rt></ruby>かったら',
+    q: '<ruby>地球<rt>ちきゅう</rt></ruby>のすぐ<ruby>隣<rt>となり</rt></ruby>に<ruby>超重力<rt>ちょうじゅうりょく</rt></ruby>の<ruby>天体<rt>てんたい</rt></ruby>が<ruby>現<rt>あらわ</rt></ruby>れたら?',
+  },
+  'all-fall': {
+    title: 'もしも<ruby>全<rt>ぜん</rt></ruby><ruby>惑星<rt>わくせい</rt></ruby>が<ruby>一斉<rt>いっせい</rt></ruby>に<ruby>止<rt>と</rt></ruby>まったら',
+    q: '8つの<ruby>惑星<rt>わくせい</rt></ruby>すべての<ruby>公転<rt>こうてん</rt></ruby>を<ruby>同時<rt>どうじ</rt></ruby>に<ruby>止<rt>と</rt></ruby>めたら?',
+  },
+  'jupiter-monster': {
+    title: 'もしも<ruby>木星<rt>もくせい</rt></ruby>が3<ruby>万倍<rt>まんばい</rt></ruby><ruby>重<rt>おも</rt></ruby>くなったら',
+    q: '<ruby>木星<rt>もくせい</rt></ruby>が<ruby>太陽<rt>たいよう</rt></ruby>より<ruby>重<rt>おも</rt></ruby>くなったら、<ruby>主役<rt>しゅやく</rt></ruby>はどっち?',
+  },
+  'sun-mercury-swap': {
+    title: 'もしも<ruby>太陽<rt>たいよう</rt></ruby>と<ruby>水星<rt>すいせい</rt></ruby>を<ruby>入<rt>い</rt></ruby>れ<ruby>替<rt>か</rt></ruby>えたら',
+    q: '<ruby>重力<rt>じゅうりょく</rt></ruby>の<ruby>中心<rt>ちゅうしん</rt></ruby>がいきなり<ruby>端<rt>はじ</rt></ruby>っこへ<ruby>飛<rt>と</rt></ruby>んだら?',
+  },
+};
