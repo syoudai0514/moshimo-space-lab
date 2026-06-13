@@ -741,7 +741,15 @@ atomsSlider.addEventListener('input', () => {
 });
 
 // ---------- 天体パネル ----------
-panelToggle.addEventListener('click', () => planetPanel.classList.toggle('hidden'));
+panelToggle.addEventListener('click', () => {
+  const willOpen = planetPanel.classList.contains('hidden');
+  planetPanel.classList.toggle('hidden');
+  // パネルを開くときはシミュレーションを一時停止して、落ち着いて設定できるように
+  if (willOpen && mode === 'solar') {
+    solarPlaying = false;
+    updatePlayBtn();
+  }
+});
 $('panel-close').addEventListener('click', () => planetPanel.classList.add('hidden'));
 
 function formatEarthMass(solarMass) {
