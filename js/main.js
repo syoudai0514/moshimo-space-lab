@@ -422,7 +422,7 @@ async function buildShareCardBlob() {
     // 「何をいじったか」= 他の人がマネできるレシピ
     ctx.fillStyle = '#9fe0ff';
     ctx.font = 'bold 28px sans-serif';
-    ctx.fillText('🛠 変更した点（マネしてね）', 40, y);
+    ctx.fillText('🛠 変更した点', 40, y);
     y += 40;
     ctx.fillStyle = '#dce8ff';
     ctx.font = '27px sans-serif';
