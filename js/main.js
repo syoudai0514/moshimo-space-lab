@@ -911,6 +911,9 @@ let pointerState = null; // { id, key, downX, downY, dragging, plane }
 
 canvas.addEventListener('pointerdown', (e) => {
   if (mode !== 'solar' || pointerState) return;
+  // アトラクト再生中の最初のタップは「解除」だけに使う(天体を拾わない)。
+  // 実際の解除は document の pointerdown が行う。
+  if (attractMode) return;
   // メイン画面(3Dビュー)を触ったら天体パネルを閉じる(✕ボタン以外でも閉じられるように)。
   // この後タップで天体を選んだ場合は pointerup で開き直される。
   planetPanel.classList.add('hidden');
@@ -956,6 +959,57 @@ function endPointer(e, cancelled) {
 canvas.addEventListener('pointerup', (e) => endPointer(e, false));
 canvas.addEventListener('pointercancel', (e) => endPointer(e, true));
 
+// ---------- アトラクトモード ----------
+// 初回ロード時、何も操作しないあいだは派手な「もしも」を自動再生し続ける。
+// 流入した人が最初の数秒で「崩壊」を目にして、自分でも触りたくなる導線。
+// 画面に触れる/何か操作した時点で解除され、まっさらな太陽系から遊び始められる。
+const ATTRACT_IDS = ['sun-vanish', 'jupiter-star', 'mars-heavy', 'all-fall', 'jupiter-monster', 'sun-mercury-swap'];
+const ATTRACT_PERIOD = 13; // 秒ごとに次のシナリオへ切り替え
+let attractMode = false;
+let attractTimer = 0;
+let attractIdx = -1;
+
+const attractHint = $('attract-hint');
+
+function startAttract() {
+  attractMode = true;
+  attractHint.classList.remove('hidden');
+  nextAttract();
+}
+
+function nextAttract() {
+  let i;
+  do { i = Math.floor(Math.random() * ATTRACT_IDS.length); }
+  while (i === attractIdx && ATTRACT_IDS.length > 1);
+  attractIdx = i;
+  const sc = SCENARIOS.find((s) => s.id === ATTRACT_IDS[i]);
+  solar.reset();
+  clearLog();
+  if (sc) {
+    sc.setup(solar);
+    speedSelect.value = sc.speed;
+  }
+  solarPlaying = true;
+  attractTimer = 0;
+}
+
+function stopAttract() {
+  if (!attractMode) return;
+  attractMode = false;
+  attractHint.classList.add('hidden');
+  endScenario();
+  solar.reset();
+  clearLog();
+  clearEdits();
+  followKey = null;
+  updateFollowBtn();
+  refreshPanel();
+  updateTimeDisplay();
+}
+
+// どこかを操作したら自動再生を終了(バブリング = 各要素の処理より前に確実に拾う)
+document.addEventListener('pointerdown', () => { if (attractMode) stopAttract(); });
+
 // ---------- メインループ ----------
 const clock = new THREE.Clock();
 let infoTick = 0;
@@ -965,6 +1019,10 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.1);
 
   if (mode === 'solar') {
+    if (attractMode) {
+      attractTimer += dt;
+      if (attractTimer >= ATTRACT_PERIOD) nextAttract();
+    }
     const dragging = pointerState !== null && pointerState.dragging;
     if (solarPlaying && !dragging) {
       solar.advance(parseFloat(speedSelect.value) * dt);
@@ -1024,4 +1082,5 @@ window.addEventListener('resize', () => {
 refreshPanel();
 setMode('solar');
 updateTimeDisplay();
+startAttract();
 animate();
