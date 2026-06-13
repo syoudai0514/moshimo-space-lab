@@ -5,6 +5,7 @@ import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=4';
 import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=2';
 import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=2';
 import { SCENARIOS, EVENT_EXPLAIN, SIM_DISCLAIMER } from './scenarios.js?v=3';
+import { LANGS, getLang, setLang, t, applyStaticI18n } from './i18n.js?v=1';
 
 const APP_URL = 'https://syoudai0514.github.io/moshimo-space-lab/';
 
@@ -179,7 +180,7 @@ function logEvent(msg) {
 }
 function renderLog() {
   if (eventLog.length === 0) {
-    eventLogEl.innerHTML = '<p class="hint">まだ記録はありません</p>';
+    eventLogEl.innerHTML = `<p class="hint">${t('lab.logEmpty')}</p>`;
     return;
   }
   eventLogEl.innerHTML = eventLog
@@ -584,7 +585,7 @@ function isPlaying() {
 
 function updatePlayBtn() {
   const p = isPlaying();
-  playBtn.textContent = p ? '⏸ 停止' : '▶ 再生';
+  playBtn.innerHTML = p ? t('time.play') : t('time.pause');
   playBtn.classList.toggle('playing', p);
 }
 
@@ -937,7 +938,7 @@ addStarBtn.addEventListener('click', () => {
 // ---------- 追従カメラ ----------
 function updateFollowBtn() {
   const active = followKey !== null && followKey === bodySelect.value;
-  followBtn.textContent = active ? '🎯 追従中 (タップで解除)' : '🎯 この天体を追いかける';
+  followBtn.innerHTML = active ? t('panel.followOn') : t('panel.follow');
   followBtn.classList.toggle('active', active);
 }
 
@@ -1148,6 +1149,33 @@ window.addEventListener('resize', () => {
   }
 });
 
+// ---------- 言語切り替え ----------
+const langSelect = $('lang-select');
+for (const [code, label] of LANGS) {
+  const opt = document.createElement('option');
+  opt.value = code;
+  opt.textContent = label;
+  langSelect.appendChild(opt);
+}
+langSelect.value = getLang();
+document.documentElement.lang = getLang();
+
+function applyAllI18n() {
+  applyStaticI18n();
+  updatePlayBtn();
+  updateFollowBtn();
+  renderLog();
+  if (!shareMenu.classList.contains('hidden')) {
+    $('share-preview').textContent = buildShareText();
+  }
+}
+
+langSelect.addEventListener('change', () => {
+  setLang(langSelect.value);
+  applyAllI18n();
+});
+
+applyAllI18n();
 refreshPanel();
 setMode('solar');
 updateTimeDisplay();

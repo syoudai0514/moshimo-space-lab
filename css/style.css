@@ -72,6 +72,19 @@ html, body {
   color: #ffe3b8;
 }
 
+#lang-select {
+  padding: 7px 10px;
+  -webkit-appearance: none;
+  appearance: none;
+  text-align: center;
+}
+
+/* ふりがなが行間を押し広げないように少し詰める */
+ruby rt {
+  font-size: 0.55em;
+  user-select: none;
+}
+
 /* ---------- 実験パネル ---------- */
 #lab-panel {
   position: fixed;
