@@ -8,6 +8,10 @@
 // ズームすると渦巻の腕まで見える。
 
 import * as THREE from 'three';
+import { getLang, fmtYears } from './i18n.js?v=5';
+import { OBSERVE_I18N } from './i18n-data.js?v=1';
+const uo = (k) => (getLang() === 'ja' ? null : OBSERVE_I18N[getLang()]?.[k]);
+function uTmpl(key, jaVal, obj) { const t = uo(key) ?? jaVal; return obj ? t.replace(/\{(\w+)\}/g, (_, k) => (obj[k] ?? '')) : t; }
 
 export const NOW_GYR = 13.8;   // 現在の宇宙年齢(十億年)
 export const END_GYR = 23.8;   // シミュレーション終端(=100億年後)
@@ -213,7 +217,7 @@ export function createUniverse() {
   scene.add(flash);
 
   // 私たちの天の川銀河の目印(テキスト + 3D空間に固定されたリング)
-  const mwLabel = makeLabel('私たちの天の川銀河');
+  const mwLabel = makeLabel(uTmpl('u.milkyWay', '私たちの天の川銀河'));
   scene.add(mwLabel);
   const mwRing = new THREE.Sprite(new THREE.SpriteMaterial({
     map: makeRingTexture(),
@@ -296,84 +300,88 @@ export function createUniverse() {
 
 export function epochInfo(tGyr) {
   if (tGyr <= 0) return {
+    id: 'uEpoch0',
     title: '🕳 宇宙誕生前',
     desc: '時間も空間もまだ存在しない。▶ 再生 でビッグバン!',
   };
   if (tGyr < 5.7e-15) return {
+    id: 'uEpoch1',
     title: '💥 ビッグバン!!',
     desc: '宇宙のはじまり。超高温・超高密度の一点から、時間と空間そのものが膨張を始める',
   };
   if (tGyr < T_RECOMB) return {
+    id: 'uEpoch2',
     title: '🔥 火の玉宇宙',
     desc: '最初の3分で水素とヘリウムの原子核が完成。光はプラズマの霧に阻まれてまっすぐ進めない。原子はまだ存在しない — 🔬でミクロの世界を覗いてみよう',
   };
   if (tGyr < 0.002) return {
+    id: 'uEpoch3',
     title: '✨ 宇宙の晴れ上がり',
     desc: '38万年後、ついに原子が生まれて宇宙は突然透明に(🔬でその瞬間を見られる)。このとき放たれた光は今も宇宙マイクロ波背景放射として観測できる',
   };
   if (tGyr < 0.15) return {
+    id: 'uEpoch4',
     title: '🌑 暗黒時代',
     desc: 'まだ星がひとつもない暗闇の時代。重力が少しずつガスを集めて、星の材料を準備していく',
   };
   if (tGyr < 1.0) return {
+    id: 'uEpoch5',
     title: '🌟 最初の星々の誕生',
     desc: '宇宙誕生から数億年、ファーストスター(初代星)と小さな銀河が青白く輝き始める',
   };
   if (tGyr < 9.0) return {
+    id: 'uEpoch6',
     title: '🌌 銀河の時代',
     desc: '銀河どうしが衝突・合体しながら大きく成長していく。宇宙でもっとも星の誕生が盛んな時代(ズームで銀河に近づける)',
   };
   if (tGyr < 9.5) return {
+    id: 'uEpoch7',
     title: '☀️ 太陽系の誕生',
     desc: '宇宙誕生から92億年(今から46億年前)、天の川銀河の片隅で太陽と地球が生まれた',
   };
   if (tGyr < 13.7) return {
+    id: 'uEpoch8',
     title: '🌍 成熟した宇宙',
     desc: 'ダークエネルギーによって膨張が加速に転じる。銀河では世代交代しながら星づくりが続く',
   };
   if (tGyr < 14.0) return {
+    id: 'uEpoch9',
     title: '📍 現在の宇宙',
     desc: '宇宙誕生から138億年。あなたはここにいる',
   };
   if (tGyr < 18.0) return {
+    id: 'uEpoch10',
     title: '🚀 加速膨張の未来',
     desc: 'ダークエネルギーで膨張はどんどん加速。銀河どうしはお互いにどんどん遠ざかっていく',
   };
   if (tGyr < 19.5) return {
+    id: 'uEpoch11',
     title: '💫 銀河の大衝突',
     desc: '今から約45億年後、天の川銀河とアンドロメダ銀河が衝突合体。同じころ太陽は赤色巨星になり、その後白色矮星へ',
   };
   return {
+    id: 'uEpoch12',
     title: '🌃 遠い未来',
     desc: '星の材料は少しずつ減り、宇宙はゆっくりと暗く静かになっていく(それでも星は何兆年も輝き続ける)',
   };
 }
 
 export function formatUniverseTime(tGyr) {
-  if (tGyr <= 0) return 'まだ時間も空間もない';
-  if (tGyr < 1e-16) return 'ビッグバンの瞬間!';
+  const l = getLang();
+  if (tGyr <= 0) return uTmpl('u.relNone', 'まだ時間も空間もない');
+  if (tGyr < 1e-16) return uTmpl('u.relBigBang', 'ビッグバンの瞬間!');
   const yr = tGyr * 1e9;
-  let age;
-  if (yr < 1 / 5256) { // 100分未満
-    const sec = yr * 3.156e7;
-    age = sec < 120 ? `${Math.max(sec, 1).toFixed(0)}秒` : `${(sec / 60).toFixed(0)}分`;
-  } else if (yr < 1) {
-    age = `${Math.max(yr * 365.25, 1).toFixed(0)}日`;
-  } else if (yr < 1e4) {
-    age = `${yr.toFixed(0)}年`;
-  } else if (yr < 1e8) {
-    age = `${(yr / 1e4).toFixed(0)}万年`;
-  } else {
-    const oku = yr / 1e8;
-    age = oku < 10 ? `${oku.toFixed(1)}億年` : `${oku.toFixed(0)}億年`;
-  }
-  // 現在との差
-  const diffOku = (NOW_GYR - tGyr) * 10;
+  const age = fmtYears(yr);
+  const diffYears = (NOW_GYR - tGyr) * 1e9;
   let rel;
-  if (Math.abs(diffOku) < 0.05) rel = 'いま!';
-  else if (diffOku > 0) rel = diffOku < 10 ? `${diffOku.toFixed(1)}億年前` : `${diffOku.toFixed(0)}億年前`;
-  else rel = -diffOku < 10 ? `${(-diffOku).toFixed(1)}億年後` : `${(-diffOku).toFixed(0)}億年後`;
-  return `宇宙誕生から${age} (${rel})`;
+  if (Math.abs(diffYears) < 5e6) {
+    rel = uTmpl('u.relNow', 'いま!');
+  } else {
+    const ago = diffYears > 0;
+    const word = { ja: ago ? '前' : '後', en: ago ? ' ago' : ' from now', zh: ago ? '前' : '后', ko: ago ? ' 전' : ' 후' }[l] ?? (ago ? '前' : '後');
+    rel = fmtYears(Math.abs(diffYears)) + word;
+  }
+  return uTmpl('u.timeTemplate', `宇宙誕生から${age} (${rel})`, { age, rel });
 }
 
 // ---------- 銀河のテクスチャ(2x2アトラス: 渦巻×2・楕円・不規則) ----------

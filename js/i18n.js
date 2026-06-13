@@ -42,6 +42,51 @@ export function tPlain(key) {
   return stripRuby(t(key));
 }
 
+// 年数を現在言語で整形(観察モード用)。ja/zh/ko は 万/億 区切り、en は million/billion。
+const YEAR_UNITS = {
+  ja: { sec: '秒', min: '分', day: '日', year: '年', man: '万年', oku: '億年' },
+  zh: { sec: '秒', min: '分钟', day: '天', year: '年', man: '万年', oku: '亿年' },
+  ko: { sec: '초', min: '분', day: '일', year: '년', man: '만 년', oku: '억 년' },
+};
+export function fmtYears(yr) {
+  const l = getLang();
+  if (l === 'en') {
+    if (yr >= 1e9) return `${(yr / 1e9).toFixed(1)} billion years`;
+    if (yr >= 1e6) return `${Math.round(yr / 1e6).toLocaleString('en-US')} million years`;
+    if (yr >= 1) return `${Math.round(yr).toLocaleString('en-US')} years`;
+    const d = yr * 365.25;
+    if (d >= 1) return `${Math.round(d)} days`;
+    const sec = yr * 3.156e7;
+    return sec < 120 ? `${Math.max(Math.round(sec), 1)} sec` : `${Math.round(sec / 60)} min`;
+  }
+  const U = YEAR_UNITS[l] || YEAR_UNITS.ja;
+  if (yr >= 1e8) { const oku = yr / 1e8; return `${oku < 10 ? oku.toFixed(1) : oku.toFixed(0)}${U.oku}`; }
+  if (yr >= 1e4) return `${Math.round(yr / 1e4)}${U.man}`;
+  if (yr >= 1) return `${Math.round(yr)}${U.year}`;
+  const d = yr * 365.25;
+  if (d >= 1) return `${Math.round(d)}${U.day}`;
+  const sec = yr * 3.156e7;
+  return sec < 120 ? `${Math.max(Math.round(sec), 1)}${U.sec}` : `${Math.round(sec / 60)}${U.min}`;
+}
+
+const TEMP_UNITS = {
+  ja: { oku: '億℃', man: '万℃', c: '℃', approx: '約' },
+  zh: { oku: '亿℃', man: '万℃', c: '℃', approx: '约' },
+  ko: { oku: '억 ℃', man: '만 ℃', c: '℃', approx: '약 ' },
+};
+export function fmtTemp(T) {
+  const l = getLang();
+  if (l === 'en') {
+    if (T >= 1e9) return `approx. ${(T / 1e9).toFixed(0)} billion °C`;
+    if (T >= 1e6) return `approx. ${Math.round(T / 1e6)} million °C`;
+    return `approx. ${Math.round(T).toLocaleString('en-US')} °C`;
+  }
+  const U = TEMP_UNITS[l] || TEMP_UNITS.ja;
+  if (T >= 1e8) return `${U.approx}${(T / 1e8).toFixed(0)}${U.oku}`;
+  if (T >= 1e4) return `${U.approx}${(T / 1e4).toFixed(0)}${U.man}`;
+  return `${U.approx}${Math.round(T)}${U.c}`;
+}
+
 // data-i18n 属性を持つ要素にまとめて流し込む
 export function applyStaticI18n(root = document) {
   for (const el of root.querySelectorAll('[data-i18n]')) {
@@ -172,6 +217,9 @@ const DICT = {
     'intro.galaxy': '🌌 実験していた太陽系は、この銀河の片隅(中心から約2.6万光年)にあります',
     'intro.universe': '🌠 宇宙138億年の歴史。▶ 再生 でビッグバンから始まります',
     'intro.atoms': '🔬 同じ時代のミクロの世界。▶ 再生 で原子ができるまでを見られます',
+    'time.zoomMicro': '🔬 ミクロの世界を見る(原子ができるまで)',
+    'time.zoomBack': '🔭 宇宙全体に戻る',
+    'atoms.legend': '🔴陽子 ⚪中性子 🔵電子 🟡光',
     'lang.label': '🌐 <ruby>言語<rt>げんご</rt></ruby>',
   },
 
@@ -284,6 +332,9 @@ const DICT = {
     'intro.galaxy': '🌌 The Solar System you were experimenting with sits in a corner of this galaxy (about 26,000 light-years from the center)',
     'intro.universe': '🌠 The 13.8-billion-year history of the universe. Press ▶ Play to start from the Big Bang',
     'intro.atoms': '🔬 The micro world of the same era. Press ▶ Play to see how atoms came to be',
+    'time.zoomMicro': '🔬 See the micro world (until atoms form)',
+    'time.zoomBack': '🔭 Back to the whole universe',
+    'atoms.legend': '🔴proton ⚪neutron 🔵electron 🟡light',
     'lang.label': '🌐 Language',
   },
 
@@ -396,6 +447,9 @@ const DICT = {
     'intro.galaxy': '🌌 你刚才做实验的太阳系，就位于这个银河系的一隅（距中心约2.6万光年）',
     'intro.universe': '🌠 宇宙138亿年的历史。点击 ▶ 播放，从大爆炸开始',
     'intro.atoms': '🔬 同一时代的微观世界。点击 ▶ 播放，即可看到原子的形成过程',
+    'time.zoomMicro': '🔬 看看微观世界(直到原子形成)',
+    'time.zoomBack': '🔭 返回整个宇宙',
+    'atoms.legend': '🔴质子 ⚪中子 🔵电子 🟡光',
     'lang.label': '🌐 语言',
   },
 
@@ -508,6 +562,9 @@ const DICT = {
     'intro.galaxy': '🌌 실험하던 태양계는 이 은하의 한구석(중심에서 약 2.6만 광년)에 있습니다',
     'intro.universe': '🌠 우주 138억 년의 역사. ▶ 재생으로 빅뱅부터 시작됩니다',
     'intro.atoms': '🔬 같은 시대의 미시 세계. ▶ 재생으로 원자가 만들어지기까지를 볼 수 있습니다',
+    'time.zoomMicro': '🔬 미시 세계 보기(원자가 생기기까지)',
+    'time.zoomBack': '🔭 우주 전체로 돌아가기',
+    'atoms.legend': '🔴양성자 ⚪중성자 🔵전자 🟡빛',
     'lang.label': '🌐 언어',
   },
 };

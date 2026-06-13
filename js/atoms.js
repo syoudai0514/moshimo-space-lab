@@ -5,6 +5,10 @@
 // すべての状態を「時刻の関数」として決定的に計算している。
 
 import * as THREE from 'three';
+import { getLang, fmtYears, fmtTemp } from './i18n.js?v=5';
+import { OBSERVE_I18N } from './i18n-data.js?v=1';
+const uo = (k) => (getLang() === 'ja' ? null : OBSERVE_I18N[getLang()]?.[k]);
+function uTmpl(key, jaVal, obj) { const t = uo(key) ?? jaVal; return obj ? t.replace(/\{(\w+)\}/g, (_, k) => (obj[k] ?? '')) : t; }
 
 export const ATOM_LOG_MIN = -7.5; // 10^-7.5 年 ≈ 1秒
 export const ATOM_LOG_MAX = 6.5;  // ≈ 316万年
@@ -237,22 +241,27 @@ export function createAtoms() {
 export function atomEpochInfo(tYears) {
   const sec = tYears * 3.156e7;
   if (sec < 60) return {
+    id: 'aEpoch0',
     title: '🍲 灼熱の素粒子スープ',
     desc: '陽子・中性子・電子が光に揉まれて飛び回る。熱すぎて何もくっつけない',
   };
   if (sec < 1200) return {
+    id: 'aEpoch1',
     title: '⚛️ ビッグバン原子核合成',
     desc: '3分ごろ、宇宙が10億℃まで冷えると陽子と中性子が合体! ヘリウム原子核が次々と生まれる(ピカッ)',
   };
   if (tYears < 3.0e5) return {
+    id: 'aEpoch2',
     title: '🌫 プラズマの霧',
     desc: '原子核と電子はまだバラバラ。光は電子にぶつかってジグザグにしか進めず、宇宙は霧の中',
   };
   if (tYears < 8e5) return {
+    id: 'aEpoch3',
     title: '🎉 原子の誕生!',
     desc: '約3000℃まで冷えると電子が原子核に捕まり、水素とヘリウムの原子が完成。光はまっすぐ進めるように(晴れ上がり)',
   };
   return {
+    id: 'aEpoch4',
     title: '🌌 中性の宇宙へ',
     desc: 'できたての原子たちは静かに漂い、やがて重力で集まって最初の星の材料になる',
   };
@@ -260,19 +269,10 @@ export function atomEpochInfo(tYears) {
 
 export function formatAtomTime(tYears) {
   const sec = tYears * 3.156e7;
-  let age;
-  if (sec < 120) age = `${Math.max(sec, 1).toFixed(0)}秒`;
-  else if (sec < 7200) age = `${(sec / 60).toFixed(0)}分`;
-  else if (tYears < 1) age = `${Math.max(tYears * 365.25, 1).toFixed(0)}日`;
-  else if (tYears < 1e4) age = `${tYears.toFixed(0)}年`;
-  else age = `${(tYears / 1e4).toFixed(0)}万年`;
-  // 放射優勢期の温度: T ≈ 1.5×10^10 K / √t(秒)
-  const T = 1.5e10 / Math.sqrt(Math.max(sec, 1));
-  let temp;
-  if (T >= 1e8) temp = `約${(T / 1e8).toFixed(0)}億℃`;
-  else if (T >= 1e4) temp = `約${(T / 1e4).toFixed(0)}万℃`;
-  else temp = `約${T.toFixed(0)}℃`;
-  return `ビッグバンから${age} (温度 ${temp})`;
+  const age = fmtYears(tYears);
+  const T = 1.5e10 / Math.sqrt(Math.max(sec, 1)); // 放射優勢期の温度
+  const temp = fmtTemp(T);
+  return uTmpl('a.timeTemplate', `ビッグバンから${age} (温度 ${temp})`, { age, temp });
 }
 
 // ---------- テクスチャ ----------

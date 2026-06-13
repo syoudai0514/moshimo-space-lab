@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createGalaxy, createBackgroundStars } from './galaxy.js?v=2';
 import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=5';
-import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=2';
-import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=2';
+import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=3';
+import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=3';
 import { SCENARIOS } from './scenarios.js?v=3';
-import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, SC_FURIGANA } from './i18n.js?v=4';
+import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, SC_FURIGANA } from './i18n.js?v=5';
 import { SCENARIO_I18N, OBSERVE_I18N } from './i18n-data.js?v=1';
 
 const SI = (sc) => SCENARIO_I18N[getLang()]?.[sc.id]; // 現在言語の実験翻訳(無ければ undefined)
@@ -581,14 +581,21 @@ function formatSolarTime(years) {
 }
 
 function formatGalaxyTime(myr) {
-  if (Math.abs(myr) < 1) return '現在の銀河系';
-  const abs = Math.abs(myr);
-  const label = abs >= 100
-    ? `${(abs / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}億年`
-    : `${Math.round(abs)}百万年`;
-  return myr > 0 ? `${label}後の銀河系` : `${label}前の銀河系`;
+  const L = getLang();
+  const O = L !== 'ja' ? OBSERVE_I18N[L] : null;
+  if (Math.abs(myr) < 1) return O?.['galaxy.now'] ?? '現在の銀河系';
+  const label = fmtYears(Math.abs(myr) * 1e6); // myr(百万年) → 年
+  const jaTmpl = myr > 0 ? `${label}後の銀河系` : `${label}前の銀河系`;
+  const tmpl = O?.[myr > 0 ? 'galaxy.after' : 'galaxy.before'] ?? jaTmpl;
+  return tmpl.replace(/\{label\}/g, label);
 }
 
+// 観察モードの年代テキストを現在言語で(ja は元の日本語、他は OBSERVE_I18N)
+function epochText(epoch, field) {
+  const L = getLang();
+  if (L === 'ja') return epoch[field];
+  return OBSERVE_I18N[L]?.[`${epoch.id}.${field}`] ?? epoch[field];
+}
 function updateTimeDisplay() {
   if (mode === 'solar') {
     timeDisplay.textContent = formatSolarTime(solar.time);
@@ -597,22 +604,22 @@ function updateTimeDisplay() {
     timeDisplay.textContent = formatGalaxyTime(galaxyTime);
     zoomBtn.classList.add('hidden');
   } else if (mode === 'universe') {
-    const t = sliderToGyr(universeS);
-    timeDisplay.textContent = formatUniverseTime(t);
-    const epoch = epochInfo(t);
-    epochDisplay.innerHTML = `<b>${epoch.title}</b> ${epoch.desc}`;
+    const gyr = sliderToGyr(universeS);
+    timeDisplay.textContent = formatUniverseTime(gyr);
+    const epoch = epochInfo(gyr);
+    epochDisplay.innerHTML = `<b>${epochText(epoch, 'title')}</b> ${epochText(epoch, 'desc')}`;
     // 原子が生まれる前後の時代(〜200万年)だけミクロの世界にズームできる
-    const canZoom = t > 0 && t < 0.002;
+    const canZoom = gyr > 0 && gyr < 0.002;
     zoomBtn.classList.toggle('hidden', !canZoom);
-    zoomBtn.textContent = '🔬 ミクロの世界を見る(原子ができるまで)';
+    zoomBtn.textContent = t('time.zoomMicro');
   } else {
-    const t = atomsSliderToYears(atomsS);
-    timeDisplay.textContent = formatAtomTime(t);
-    const epoch = atomEpochInfo(t);
-    epochDisplay.innerHTML = `<b>${epoch.title}</b> ${epoch.desc}`
-      + '<br>🔴陽子 ⚪中性子 🔵電子 🟡光';
+    const yrs = atomsSliderToYears(atomsS);
+    timeDisplay.textContent = formatAtomTime(yrs);
+    const epoch = atomEpochInfo(yrs);
+    epochDisplay.innerHTML = `<b>${epochText(epoch, 'title')}</b> ${epochText(epoch, 'desc')}`
+      + `<br>${t('atoms.legend')}`;
     zoomBtn.classList.remove('hidden');
-    zoomBtn.textContent = '🔭 宇宙全体に戻る';
+    zoomBtn.textContent = t('time.zoomBack');
   }
 }
 
