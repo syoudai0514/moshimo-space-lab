@@ -5,7 +5,7 @@
 // すべての状態を「時刻の関数」として決定的に計算している。
 
 import * as THREE from 'three';
-import { getLang, fmtYears, fmtTemp } from './i18n.js?v=5';
+import { getLang, fmtYears, fmtTemp } from './i18n.js?v=6';
 import { OBSERVE_I18N } from './i18n-data.js?v=1';
 const uo = (k) => (getLang() === 'ja' ? null : OBSERVE_I18N[getLang()]?.[k]);
 function uTmpl(key, jaVal, obj) { const t = uo(key) ?? jaVal; return obj ? t.replace(/\{(\w+)\}/g, (_, k) => (obj[k] ?? '')) : t; }

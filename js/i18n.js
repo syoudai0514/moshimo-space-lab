@@ -24,12 +24,23 @@ export function setLang(l) {
 }
 
 export function t(key) {
+  let v;
   const d = DICT[lang];
-  if (d && d[key] != null) return d[key];
-  if (DICT.en[key] != null) return DICT.en[key];
-  if (DICT.ja[key] != null) return DICT.ja[key];
-  return key;
+  if (d && d[key] != null) v = d[key];
+  else if (DICT.en[key] != null) v = DICT.en[key];
+  else if (DICT.ja[key] != null) v = DICT.ja[key];
+  else return key;
+  return furi(v);
 }
+
+// ---- ふりがな(振り仮名) ON/OFF ----
+let furigana = lsGet('mslab-furigana') !== '0'; // 既定 ON
+export function getFurigana() { return furigana; }
+export function setFurigana(on) { furigana = !!on; lsSet('mslab-furigana', on ? '1' : '0'); }
+// <ruby> の読み(<rt>)だけを外す。<b>/<br> などは残す。
+function stripRubyOnly(html) { return html.replace(/<rt>.*?<\/rt>/g, '').replace(/<\/?ruby>/g, ''); }
+// 日本語表示でふりがな OFF のとき、読み仮名を外す
+export function furi(html) { return (lang === 'ja' && !furigana) ? stripRubyOnly(html) : html; }
 
 // ふりがな(ruby)を取り除いてプレーンな文字列にする。
 // <option> やキャンバス描画など、HTMLを描画できない場所で使う。
@@ -220,6 +231,18 @@ const DICT = {
     'time.zoomMicro': '🔬 ミクロの世界を見る(原子ができるまで)',
     'time.zoomBack': '🔭 宇宙全体に戻る',
     'atoms.legend': '🔴陽子 ⚪中性子 🔵電子 🟡光',
+    'info.notExist': '💨 いまは存在しません(リセットで復活)',
+    'info.escaped': '🚀 太陽系のかなたへ…',
+    'info.dist': '太陽からの距離: {r} AU',
+    'info.speed': '速度: {v} km/s',
+    'info.radius': '半径: {km} km (地球の{x}倍)',
+    'info.massSun': '質量: 太陽の{x}倍',
+    'info.massEarth': '質量: {v}',
+    'mass.earthApprox': '地球の約{n}倍',
+    'mass.earthSame': '地球と同じ',
+    'rec.saving': '⏺ 保存中…',
+    'furi.label': 'ふりがな',
+    'unit.yr': '年',
     'lang.label': '🌐 <ruby>言語<rt>げんご</rt></ruby>',
   },
 
@@ -335,6 +358,18 @@ const DICT = {
     'time.zoomMicro': '🔬 See the micro world (until atoms form)',
     'time.zoomBack': '🔭 Back to the whole universe',
     'atoms.legend': '🔴proton ⚪neutron 🔵electron 🟡light',
+    'info.notExist': '💨 Does not exist now (Reset to restore)',
+    'info.escaped': '🚀 Off beyond the Solar System…',
+    'info.dist': 'Distance from Sun: {r} AU',
+    'info.speed': 'Speed: {v} km/s',
+    'info.radius': 'Radius: {km} km ({x}× Earth)',
+    'info.massSun': 'Mass: {x}× the Sun',
+    'info.massEarth': 'Mass: {v}',
+    'mass.earthApprox': 'about {n}× Earth',
+    'mass.earthSame': 'same as Earth',
+    'rec.saving': '⏺ Saving…',
+    'furi.label': 'Furigana',
+    'unit.yr': ' yr',
     'lang.label': '🌐 Language',
   },
 
@@ -450,6 +485,18 @@ const DICT = {
     'time.zoomMicro': '🔬 看看微观世界(直到原子形成)',
     'time.zoomBack': '🔭 返回整个宇宙',
     'atoms.legend': '🔴质子 ⚪中子 🔵电子 🟡光',
+    'info.notExist': '💨 现在不存在（重置可恢复）',
+    'info.escaped': '🚀 飞向太阳系之外…',
+    'info.dist': '与太阳的距离：{r} AU',
+    'info.speed': '速度：{v} km/s',
+    'info.radius': '半径：{km} km（地球的{x}倍）',
+    'info.massSun': '质量：太阳的{x}倍',
+    'info.massEarth': '质量：{v}',
+    'mass.earthApprox': '约{n}倍地球',
+    'mass.earthSame': '与地球相同',
+    'rec.saving': '⏺ 保存中…',
+    'furi.label': '假名',
+    'unit.yr': '年',
     'lang.label': '🌐 语言',
   },
 
@@ -565,6 +612,18 @@ const DICT = {
     'time.zoomMicro': '🔬 미시 세계 보기(원자가 생기기까지)',
     'time.zoomBack': '🔭 우주 전체로 돌아가기',
     'atoms.legend': '🔴양성자 ⚪중성자 🔵전자 🟡빛',
+    'info.notExist': '💨 지금은 존재하지 않습니다(리셋하면 복구)',
+    'info.escaped': '🚀 태양계 저편으로…',
+    'info.dist': '태양으로부터의 거리: {r} AU',
+    'info.speed': '속도: {v} km/s',
+    'info.radius': '반지름: {km} km (지구의 {x}배)',
+    'info.massSun': '질량: 태양의 {x}배',
+    'info.massEarth': '질량: {v}',
+    'mass.earthApprox': '지구의 약 {n}배',
+    'mass.earthSame': '지구와 같음',
+    'rec.saving': '⏺ 저장 중…',
+    'furi.label': '후리가나',
+    'unit.yr': '년',
     'lang.label': '🌐 언어',
   },
 };

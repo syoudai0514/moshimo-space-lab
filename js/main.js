@@ -5,13 +5,13 @@ import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=5';
 import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=3';
 import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=3';
 import { SCENARIOS } from './scenarios.js?v=3';
-import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, SC_FURIGANA } from './i18n.js?v=5';
+import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=6';
 import { SCENARIO_I18N, OBSERVE_I18N } from './i18n-data.js?v=1';
 
 const SI = (sc) => SCENARIO_I18N[getLang()]?.[sc.id]; // 現在言語の実験翻訳(無ければ undefined)
 // 実験の表示用タイトル・問い。日本語のときは子供向けにふりがな付き。
-const scTitle = (sc) => (getLang() === 'ja' ? (SC_FURIGANA[sc.id]?.title ?? sc.title) : (SI(sc)?.title ?? sc.title));
-const scQuestion = (sc) => (getLang() === 'ja' ? (SC_FURIGANA[sc.id]?.q ?? sc.question) : (SI(sc)?.q ?? sc.question));
+const scTitle = (sc) => (getLang() === 'ja' ? furi(SC_FURIGANA[sc.id]?.title ?? sc.title) : (SI(sc)?.title ?? sc.title));
+const scQuestion = (sc) => (getLang() === 'ja' ? furi(SC_FURIGANA[sc.id]?.q ?? sc.question) : (SI(sc)?.q ?? sc.question));
 const scWatch = (sc) => (getLang() === 'ja' ? sc.watch : (SI(sc)?.watch ?? sc.watch));
 const scExplain = (sc) => (getLang() === 'ja' ? sc.explain : (SI(sc)?.explain ?? sc.explain));
 // 共有用(プレーン): タイトル・キャッチコピーを選択言語で
@@ -195,7 +195,7 @@ function toast(ev) {
 const eventLogEl = $('event-log');
 const eventLog = []; // { time: '+1.2年', msg }
 function logEvent(msg) {
-  eventLog.push({ time: `+${solar.time.toFixed(1)}年`, msg });
+  eventLog.push({ time: `+${solar.time.toFixed(1)}${t('unit.yr')}`, msg });
   if (eventLog.length > 50) eventLog.shift();
   renderLog();
 }
@@ -409,7 +409,7 @@ async function shareImage() {
   const file = new File([blob], 'moshimo-space-lab.png', { type: 'image/png' });
   if (navigator.canShare?.({ files: [file] })) {
     try {
-      await navigator.share({ files: [file], title: 'もしも宇宙ラボ', text: buildShareText() });
+      await navigator.share({ files: [file], title: tPlain('app.title'), text: buildShareText() });
     } catch { /* キャンセル */ }
   } else {
     downloadBlob(blob, 'moshimo-space-lab.png');
@@ -485,7 +485,7 @@ async function buildShareCardBlob() {
 
   ctx.fillStyle = '#8fa5cc';
   ctx.font = '26px sans-serif';
-  ctx.fillText('#もしも宇宙ラボ　' + APP_URL, 40, size - 26);
+  ctx.fillText(`${t('share.hashtags').split(' ')[0]}　${APP_URL}`, 40, size - 26);
 
   return new Promise((res) => card.toBlob(res, 'image/png'));
 }
@@ -548,7 +548,7 @@ function recordClip() {
     const file = new File([blob], `moshimo-space-lab.${vtype.ext}`, { type: vtype.mime });
     if (navigator.canShare?.({ files: [file] })) {
       try {
-        await navigator.share({ files: [file], title: 'もしも宇宙ラボ', text: buildShareText() });
+        await navigator.share({ files: [file], title: tPlain('app.title'), text: buildShareText() });
       } catch { /* キャンセル */ }
     } else {
       downloadBlob(blob, `moshimo-space-lab.${vtype.ext}`);
@@ -563,7 +563,7 @@ function recordClip() {
   toast(t('toast.videoRec'));
   const iv = setInterval(() => {
     remain--;
-    recIndicator.textContent = remain > 0 ? `⏺ REC ${remain}` : '⏺ 保存中…';
+    recIndicator.textContent = remain > 0 ? `⏺ REC ${remain}` : t('rec.saving');
     if (remain <= 0) { clearInterval(iv); if (recorder) recorder.stop(); }
   }, 1000);
 }
@@ -812,10 +812,12 @@ $('panel-close').addEventListener('click', () => planetPanel.classList.add('hidd
 
 function formatEarthMass(solarMass) {
   const em = solarMass / EARTH_MASS;
-  if (em >= 10000) return `地球の約${Math.round(em / 1000) * 1000}倍`;
-  if (em >= 10) return `地球の約${Math.round(em)}倍`;
-  if (em >= 0.95 && em < 1.05) return '地球と同じ';
-  return `地球の約${em.toPrecision(2)}倍`;
+  if (em >= 0.95 && em < 1.05) return t('mass.earthSame');
+  let n;
+  if (em >= 10000) n = (Math.round(em / 1000) * 1000).toLocaleString();
+  else if (em >= 10) n = Math.round(em).toLocaleString();
+  else n = em.toPrecision(2);
+  return fmt(t('mass.earthApprox'), { n });
 }
 
 function refreshInfo() {
@@ -823,20 +825,20 @@ function refreshInfo() {
   const sun = solar.bodies[0];
   const lines = [`<b>${bodyName(b)}</b>`];
   if (!b.alive) {
-    lines.push('💨 いまは存在しません(リセットで復活)');
+    lines.push(t('info.notExist'));
   } else {
-    if (b.escaped) lines.push('🚀 太陽系のかなたへ…');
+    if (b.escaped) lines.push(t('info.escaped'));
     if (b.key !== 'sun') {
       const r = b.pos.distanceTo(sun.pos);
       const v = b.vel.clone().sub(sun.vel).length() * 4.74; // AU/年 → km/s
-      lines.push(`太陽からの距離: ${r.toFixed(2)} AU`);
-      lines.push(`速度: ${v.toFixed(1)} km/s`);
+      lines.push(fmt(t('info.dist'), { r: r.toFixed(2) }));
+      lines.push(fmt(t('info.speed'), { v: v.toFixed(1) }));
     }
     const radiusKm = b.radiusKm * b.sizeScale;
-    lines.push(`半径: ${Math.round(radiusKm).toLocaleString()} km (地球の${(radiusKm / 6371).toPrecision(3)}倍)`);
+    lines.push(fmt(t('info.radius'), { km: Math.round(radiusKm).toLocaleString(), x: (radiusKm / 6371).toPrecision(3) }));
     lines.push(b.key === 'sun'
-      ? `質量: 太陽の${solar.effMass(b).toPrecision(3)}倍`
-      : `質量: ${formatEarthMass(solar.effMass(b))}`);
+      ? fmt(t('info.massSun'), { x: solar.effMass(b).toPrecision(3) })
+      : fmt(t('info.massEarth'), { v: formatEarthMass(solar.effMass(b)) }));
   }
   bodyInfo.innerHTML = lines.join('<br>');
 }
@@ -1209,6 +1211,18 @@ for (const [code, label] of LANGS) {
 langSelect.value = getLang();
 document.documentElement.lang = getLang();
 
+// ふりがな ON/OFF トグル(日本語表示のときだけ出す)
+const furiToggle = $('furi-toggle');
+function updateFuriToggle() {
+  const ja = getLang() === 'ja';
+  furiToggle.classList.toggle('hidden', !ja);
+  if (ja) furiToggle.textContent = `${tPlain('furi.label')} ${getFurigana() ? 'ON' : 'OFF'}`;
+}
+furiToggle.addEventListener('click', () => {
+  setFurigana(!getFurigana());
+  applyAllI18n();
+});
+
 // ヘッダーの高さ(言語やふりがなで段数・高さが変わる)に合わせて、
 // 上部に貼り付くパネル類の位置を下げる。これで「天体の設定」等との重なりを防ぐ。
 function updateTopOffset() {
@@ -1229,6 +1243,7 @@ function applyAllI18n() {
     $('share-preview').textContent = buildShareText();
   }
   updateTimeDisplay();   // 観察モードの時刻・年代表示も言語反映
+  updateFuriToggle();    // ふりがなトグルの表示/ラベル
   updateTopOffset(); // ヘッダー高さ(ふりがな/言語で変わる)にパネル位置を追従
 }
 
