@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createGalaxy, createBackgroundStars } from './galaxy.js?v=2';
-import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=2';
+import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=3';
 import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=2';
 import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=2';
 import { SCENARIOS, EVENT_EXPLAIN, SIM_DISCLAIMER } from './scenarios.js?v=3';
@@ -130,6 +130,7 @@ const circularizeBtn = $('circularize-btn');
 const swapField = $('swap-field');
 const swapSelect = $('swap-select');
 const swapBtn = $('swap-btn');
+const deleteBtn = $('delete-btn');
 
 // 天体セレクトを構築
 for (const b of solar.bodies) {
@@ -765,7 +766,7 @@ function refreshInfo() {
   const sun = solar.bodies[0];
   const lines = [`<b>${b.name}</b>`];
   if (!b.alive) {
-    lines.push('🔥 太陽に飲み込まれました(リセットで復活)');
+    lines.push('💨 いまは存在しません(リセットで復活)');
   } else {
     if (b.escaped) lines.push('🚀 太陽系のかなたへ…');
     if (b.key !== 'sun') {
@@ -796,6 +797,7 @@ function refreshPanel() {
   distField.classList.toggle('hidden', !planetEditable);
   circularizeBtn.classList.toggle('hidden', !planetEditable);
   swapField.classList.toggle('hidden', !b.alive);
+  deleteBtn.classList.toggle('hidden', !b.alive);
   if (planetEditable) {
     const r = b.pos.distanceTo(solar.bodies[0].pos);
     distSlider.value = Math.log10(Math.max(r, 0.05));
@@ -870,6 +872,15 @@ swapBtn.addEventListener('click', () => {
   solar.swapBodies(a.key, b.key);
   recordEdit(`swap:${[a.key, b.key].sort().join('-')}`, `${a.name}⇄${b.name} 入れ替え`);
   toast(`🔄 ${a.name}と${b.name}の場所を入れ替えました`);
+  refreshPanel();
+});
+
+deleteBtn.addEventListener('click', () => {
+  const b = solar.getBody(bodySelect.value);
+  if (!b.alive) return;
+  solar.removeBody(b.key);
+  recordEdit(`del:${b.key}`, `${b.name}を消した`);
+  toast(`🗑 ${b.name}を消しました${b.key === 'sun' ? '(重力が消えて惑星が飛んでいきます)' : ''}`);
   refreshPanel();
 });
 

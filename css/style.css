@@ -539,6 +539,12 @@ html, body {
   color: #cfe1ff;
 }
 
+.action.danger {
+  border-color: rgba(255, 110, 90, 0.55);
+  background: rgba(120, 30, 25, 0.55);
+  color: #ffc9bd;
+}
+
 /* シェアメニュー */
 #share-menu {
   position: fixed;

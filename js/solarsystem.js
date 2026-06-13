@@ -136,6 +136,9 @@ export class SolarSystem {
   // 位置・速度・スケールを初期状態にする
   _initState() {
     this.time = 0;
+    // 太陽を消していた場合に備えて、光と光芒を元に戻す
+    this.glow.visible = true;
+    this.light.intensity = 3;
     const momentum = new THREE.Vector3();
     for (const b of this.bodies) {
       b.massScale = 1;
@@ -250,6 +253,7 @@ export class SolarSystem {
 
   _checkAbsorption() {
     const sun = this.bodies[0];
+    if (!sun.alive) return; // 太陽を消したら吸収する中心も無い
     // 吸収判定は画面上の太陽の大きさに合わせる(見た目と一致させるため)
     const absorbR = this.physRadiusAU(sun) * this.exaggeration;
     for (const b of this.bodies) {
@@ -284,6 +288,23 @@ export class SolarSystem {
 
   setMassScale(key, scale) {
     this.getBody(key).massScale = scale; // 次のステップから重力に反映される
+  }
+
+  // 天体を消す。重力も消えるので、太陽を消すと全惑星が直進し始める。
+  // (リセットで復活)
+  removeBody(key) {
+    const b = this.getBody(key);
+    if (!b.alive) return;
+    b.alive = false;
+    b.mesh.visible = false;
+    b.marker.visible = false;
+    b.label.visible = false;
+    this.clearTrail(key);
+    if (b.key === 'sun') {
+      // 太陽を消したら光と光芒も消す
+      this.glow.visible = false;
+      this.light.intensity = 0;
+    }
   }
 
   setSizeScale(key, scale) {
