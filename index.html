@@ -7,7 +7,7 @@
   <meta name="description" content="もしも太陽が消えたら?木星が恒星になったら?本物の重力計算(N体シミュレーション)で「もしも」を実験できる宇宙ラボ。">
   <meta name="theme-color" content="#080e1e">
   <!-- ?v= はキャッシュ対策のバージョン番号。デプロイのたびに上げる -->
-  <link rel="stylesheet" href="css/style.css?v=1">
+  <link rel="stylesheet" href="css/style.css?v=2">
   <script type="importmap">
   {
     "imports": {
@@ -24,12 +24,42 @@
   <div id="header">
     <h1>🧪 もしも宇宙ラボ</h1>
     <div id="mode-tabs">
+      <button id="back-to-lab" class="tab hidden">← 実験室</button>
       <button id="lab-toggle" class="tab lab">🧪 実験</button>
-      <button id="tab-solar" class="tab active">太陽系</button>
-      <button id="tab-galaxy" class="tab">銀河系</button>
-      <button id="tab-universe" class="tab">宇宙の歴史</button>
-      <button id="tab-atoms" class="tab">原子の誕生</button>
+      <button id="observe-toggle" class="tab">🔭 観察</button>
+      <button id="help-btn" class="tab">❓</button>
     </div>
+  </div>
+
+  <!-- 初回ウェルカム -->
+  <div id="welcome-overlay" class="hidden">
+    <div id="welcome">
+      <h2>🧪 もしも宇宙ラボへようこそ</h2>
+      <p>ここは、宇宙をいじくり倒せる実験室。<br>
+        もしも太陽が消えたら? 木星が恒星になったら?</p>
+      <p>本物の重力計算で「もしも」を試して、<br>
+        なぜそうなるのかを学ぼう。</p>
+      <button id="welcome-start" class="action">🧪 実験を選んで始める</button>
+      <button id="welcome-free" class="action secondary">🪐 自由にいじってみる</button>
+      <p class="hint">🔭 右上の「観察」から、銀河や宇宙138億年の歴史も見られます</p>
+    </div>
+  </div>
+
+  <!-- 観察モードメニュー -->
+  <div id="observe-menu" class="hidden">
+    <div class="panel-header">
+      <span>🔭 観察モード</span>
+      <button id="observe-close">✕</button>
+    </div>
+    <p class="hint">実験の舞台である宇宙を、ちがうスケールで眺める資料室です。</p>
+    <button class="scenario-card" id="go-galaxy">
+      <div class="sc-title">🌌 銀河系</div>
+      <div class="sc-q">実験していた太陽系は、この天の川銀河の片隅にある。±30億年の回転を見る</div>
+    </button>
+    <button class="scenario-card" id="go-universe">
+      <div class="sc-title">🌠 宇宙の歴史</div>
+      <div class="sc-q">ビッグバンから238億年まで。原子が生まれる前の時代には 🔬 でズームインできる</div>
+    </button>
   </div>
 
   <!-- イベント通知 -->
@@ -120,6 +150,7 @@
 
   <!-- 時間コントロール -->
   <div id="time-bar">
+    <button id="zoom-btn" class="hidden">🔬 ミクロの世界を見る</button>
     <div id="time-display">現在</div>
     <div id="epoch-display" class="hidden"></div>
     <input type="range" id="galaxy-slider" class="hidden" min="-3000" max="3000" step="5" value="0">
@@ -149,6 +180,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=1"></script>
+  <script type="module" src="js/main.js?v=2"></script>
 </body>
 </html>
