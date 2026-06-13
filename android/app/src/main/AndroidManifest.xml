@@ -20,12 +20,10 @@
             </intent-filter>
         </activity>
 
-        <!-- AdMob アプリ ID。今は Google 公式のテスト ID。
-             リリース前に AdMob 管理画面で取得した本物のアプリ ID に差し替える。
-             (src/native/main.js の広告ユニット ID も合わせて差し替えること) -->
+        <!-- AdMob アプリ ID(本番)。src/native/main.js の広告ユニット ID と対。 -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713"
+            android:value="ca-app-pub-5902840391247067~9692736343"
         />
 
         <provider

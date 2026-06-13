@@ -18,10 +18,10 @@ import { AdMob } from '@capacitor-community/admob';
 //    (android/app/src/main/AndroidManifest.xml の
 //     com.google.android.gms.ads.APPLICATION_ID)。
 // ===================================================================
-const TESTING = true;
+const TESTING = false;
 const AD_UNITS = {
-  // Google 公式テスト用インタースティシャル ID
-  interstitial: 'ca-app-pub-3940256099942544/1033173712',
+  // 本番インタースティシャル広告ユニット ID
+  interstitial: 'ca-app-pub-5902840391247067/6234008495',
 };
 
 // 広告の頻度制御
