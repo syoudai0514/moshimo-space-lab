@@ -5,11 +5,16 @@ import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=4';
 import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=2';
 import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=2';
 import { SCENARIOS, EVENT_EXPLAIN, SIM_DISCLAIMER } from './scenarios.js?v=3';
-import { LANGS, getLang, setLang, t, applyStaticI18n, SC_FURIGANA } from './i18n.js?v=2';
+import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, SC_FURIGANA, SCENARIO_I18N } from './i18n.js?v=3';
 
 // 実験の表示用タイトル・問い。日本語のときは子供向けにふりがな付き。
-const scTitle = (sc) => (getLang() === 'ja' ? (SC_FURIGANA[sc.id]?.title ?? sc.title) : sc.title);
+const scTitle = (sc) => (getLang() === 'ja' ? (SC_FURIGANA[sc.id]?.title ?? sc.title) : (SCENARIO_I18N[getLang()]?.[sc.id]?.title ?? sc.title));
 const scQuestion = (sc) => (getLang() === 'ja' ? (SC_FURIGANA[sc.id]?.q ?? sc.question) : sc.question);
+// 共有用(プレーン): タイトル・キャッチコピーを選択言語で
+const scShareTitle = (sc) => (getLang() === 'ja' ? sc.title : (SCENARIO_I18N[getLang()]?.[sc.id]?.title ?? sc.title));
+const scShareLine = (sc) => (getLang() === 'ja' ? sc.shareLine : (SCENARIO_I18N[getLang()]?.[sc.id]?.share ?? sc.shareLine));
+// "{x}" を置換する簡易フォーマッタ
+const fmt = (str, obj) => str.replace(/\{(\w+)\}/g, (_, k) => (obj[k] ?? ''));
 
 const APP_URL = 'https://syoudai0514.github.io/moshimo-space-lab/';
 
@@ -316,14 +321,14 @@ function survivalStats() {
 
 function scoreLine() {
   const s = survivalStats();
-  return `🏆 生存 ${s.alive}/${s.total}　🔥 ${s.absorbed}　🚀 ${s.escaped}`;
+  return `🏆 ${tPlain('card.survivors')} ${s.alive}/${s.total}　🔥 ${s.absorbed}　🚀 ${s.escaped}`;
 }
 
 function freeOutcomeLine(s) {
-  if (s.absorbed && s.escaped) return '惑星を飲み込ませたり弾き飛ばしたり、宇宙で大暴れ。';
-  if (s.absorbed) return '惑星を太陽に飲み込ませてみた。';
-  if (s.escaped) return '惑星を宇宙の彼方へ弾き飛ばしてみた。';
-  return '本物の重力で太陽系をいじって遊べる実験室。';
+  if (s.absorbed && s.escaped) return t('share.outBoth');
+  if (s.absorbed) return t('share.outAbsorbed');
+  if (s.escaped) return t('share.outEscaped');
+  return t('share.outNone');
 }
 
 // ---- 変更点(レシピ)の記録 ----
@@ -339,14 +344,16 @@ function fmtScale(x) { return x >= 10 ? `×${Math.round(x)}` : `×${x.toFixed(2)
 // シェア本文: 結果を文章化 + 変更レシピ + ハッシュタグ + URL(引用したくなる一言を狙う)
 function buildShareText() {
   const s = survivalStats();
-  const title = activeScenario ? `${activeScenario.emoji} ${activeScenario.title}` : '🪐 自由実験モード';
-  const outcome = activeScenario?.shareLine ?? freeOutcomeLine(s);
+  const title = activeScenario ? `${activeScenario.emoji} ${scShareTitle(activeScenario)}` : `🪐 ${tPlain('card.free')}`;
+  const outcome = activeScenario ? scShareLine(activeScenario) : freeOutcomeLine(s);
+  const y = s.years.toFixed(1);
   const result = (s.absorbed || s.escaped)
-    ? `→ ${s.years.toFixed(1)}年で 🔥${s.absorbed}個飲み込み / 🚀${s.escaped}個射出（生存 ${s.alive}/${s.total}）`
-    : `→ ${s.years.toFixed(1)}年経過、全${s.total}惑星が生存中`;
+    ? fmt(t('share.resultHit'), { y, a: s.absorbed, e: s.escaped, al: s.alive, t: s.total })
+    : fmt(t('share.resultSafe'), { y, t: s.total });
+  // 変更レシピは現状 日本語ラベルなので、日本語のときだけ付ける(他言語は混在を避ける)
   const changes = changeSummary();
-  const recipe = changes.length ? `\n🛠 変更: ${changes.slice(0, 4).join('、')}` : '';
-  return `${title}\n${outcome}\n${result}${recipe}\n\n#もしも宇宙ラボ #宇宙シミュレーション\n${APP_URL}`;
+  const recipe = (getLang() === 'ja' && changes.length) ? `\n${t('share.recipePrefix')}${changes.slice(0, 4).join('、')}` : '';
+  return `${title}\n${outcome}\n${result}${recipe}\n\n${t('share.hashtags')}\n${APP_URL}`;
 }
 
 // ---- シェアメニュー ----
@@ -419,10 +426,10 @@ async function buildShareCardBlob() {
 
   ctx.fillStyle = '#ffe3b8';
   ctx.font = 'bold 46px sans-serif';
-  ctx.fillText('🧪 もしも宇宙ラボ', 40, 82);
+  ctx.fillText(tPlain('app.title'), 40, 82);
   ctx.fillStyle = '#cfe1ff';
   ctx.font = '32px sans-serif';
-  ctx.fillText(activeScenario ? `${activeScenario.emoji} ${activeScenario.title}` : '自由実験モード', 40, 142);
+  ctx.fillText(activeScenario ? `${activeScenario.emoji} ${scShareTitle(activeScenario)}` : tPlain('card.free'), 40, 142);
 
   // 下段テキスト: スコア → 経過時間 → 変更点(あれば) or 直近イベント → URL
   let y = size - 410;
@@ -441,7 +448,7 @@ async function buildShareCardBlob() {
     // 「何をいじったか」= 他の人がマネできるレシピ
     ctx.fillStyle = '#9fe0ff';
     ctx.font = 'bold 28px sans-serif';
-    ctx.fillText('🛠 変更した点', 40, y);
+    ctx.fillText(tPlain('card.changes'), 40, y);
     y += 40;
     ctx.fillStyle = '#dce8ff';
     ctx.font = '27px sans-serif';
@@ -544,8 +551,13 @@ function recordClip() {
 // ---------- 時間表示 ----------
 function formatSolarTime(years) {
   const d = new Date(BASE_DATE.getTime() + years * 365.25 * 24 * 3600 * 1000);
-  const dateStr = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
-  return `${dateStr} (+${years.toFixed(2)}年)`;
+  const pad = (n) => String(n).padStart(2, '0');
+  return fmt(t('date.fmt'), {
+    y: d.getFullYear(),
+    m: getLang() === 'ja' ? d.getMonth() + 1 : pad(d.getMonth() + 1),
+    d: getLang() === 'ja' ? d.getDate() : pad(d.getDate()),
+    yr: years.toFixed(2),
+  });
 }
 
 function formatGalaxyTime(myr) {
