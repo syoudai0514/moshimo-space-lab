@@ -6,8 +6,20 @@
   <title>もしも宇宙ラボ - こわして学ぶ宇宙の実験室</title>
   <meta name="description" content="もしも太陽が消えたら?木星が恒星になったら?本物の重力計算(N体シミュレーション)で「もしも」を実験できる宇宙ラボ。">
   <meta name="theme-color" content="#080e1e">
+
+  <!-- OGP / Twitter カード: SNSにURLを貼ったときのプレビュー画像 -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="もしも宇宙ラボ - こわして学ぶ宇宙の実験室">
+  <meta property="og:description" content="もしも太陽が消えたら?木星が恒星になったら?本物の重力計算で「宇宙のもしも」を実験できる。">
+  <meta property="og:url" content="https://syoudai0514.github.io/moshimo-space-lab/">
+  <meta property="og:image" content="https://syoudai0514.github.io/moshimo-space-lab/store/feature-graphic.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="もしも宇宙ラボ - こわして学ぶ宇宙の実験室">
+  <meta name="twitter:description" content="もしも太陽が消えたら?本物の重力計算で「宇宙のもしも」を実験できる学習アプリ。">
+  <meta name="twitter:image" content="https://syoudai0514.github.io/moshimo-space-lab/store/feature-graphic.png">
+
   <!-- ?v= はキャッシュ対策のバージョン番号。デプロイのたびに上げる -->
-  <link rel="stylesheet" href="css/style.css?v=2">
+  <link rel="stylesheet" href="css/style.css?v=3">
   <script type="importmap">
   {
     "imports": {
@@ -64,6 +76,24 @@
 
   <!-- イベント通知 -->
   <div id="toasts"></div>
+
+  <!-- 録画インジケーター -->
+  <div id="rec-indicator" class="hidden">⏺ REC</div>
+
+  <!-- シェアメニュー -->
+  <div id="share-menu" class="hidden">
+    <div class="panel-header">
+      <span>📣 シェアする</span>
+      <button id="share-menu-close">✕</button>
+    </div>
+    <p class="hint">いまの実験結果を、SNSや友だちにシェアできます。</p>
+    <pre id="share-preview"></pre>
+    <button class="action" id="share-video">🎬 崩壊の動画を撮る(6秒)</button>
+    <button class="action" id="share-image">📸 結果カードを画像で保存</button>
+    <button class="action secondary" id="share-x">𝕏 でツイートする</button>
+    <button class="action secondary" id="share-line">LINE で送る</button>
+    <button class="action secondary" id="share-copy">🔗 テキストをコピー</button>
+  </div>
 
   <!-- 実験中バナー -->
   <div id="scenario-banner" class="hidden">
@@ -175,11 +205,11 @@
       </select>
       <button id="clear-trails-btn">🧹 軌跡を消す</button>
       <button id="reset-btn">↺ リセット</button>
-      <button id="share-btn">📸 シェア</button>
+      <button id="share-btn">📣 シェア</button>
       <button id="now-btn" class="hidden">⏺ 現在へ</button>
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=2"></script>
+  <script type="module" src="js/main.js?v=3"></script>
 </body>
 </html>

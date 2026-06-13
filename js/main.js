@@ -4,7 +4,7 @@ import { createGalaxy, createBackgroundStars } from './galaxy.js?v=2';
 import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=2';
 import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=2';
 import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=2';
-import { SCENARIOS, EVENT_EXPLAIN, SIM_DISCLAIMER } from './scenarios.js?v=2';
+import { SCENARIOS, EVENT_EXPLAIN, SIM_DISCLAIMER } from './scenarios.js?v=3';
 
 const APP_URL = 'https://syoudai0514.github.io/moshimo-space-lab/';
 
@@ -278,11 +278,87 @@ $('scenario-end-btn').addEventListener('click', () => {
 });
 
 // ---------- 結果シェア ----------
-$('share-btn').addEventListener('click', shareResult);
+$('share-btn').addEventListener('click', openShareMenu);
 
-async function shareResult() {
+// ---- 結果の集計(スコア化) ----
+function survivalStats() {
+  let absorbed = 0, escaped = 0, alive = 0, total = 0;
+  for (const b of solar.bodies) {
+    if (b.key === 'sun') continue;
+    total++;
+    if (!b.alive) absorbed++;
+    else if (b.escaped) escaped++;
+    else alive++;
+  }
+  return { total, absorbed, escaped, alive, years: solar.time };
+}
+
+function scoreLine() {
+  const s = survivalStats();
+  return `🏆 生存 ${s.alive}/${s.total}　🔥 ${s.absorbed}　🚀 ${s.escaped}`;
+}
+
+function freeOutcomeLine(s) {
+  if (s.absorbed && s.escaped) return '惑星を飲み込ませたり弾き飛ばしたり、宇宙で大暴れ。';
+  if (s.absorbed) return '惑星を太陽に飲み込ませてみた。';
+  if (s.escaped) return '惑星を宇宙の彼方へ弾き飛ばしてみた。';
+  return '本物の重力で太陽系をいじって遊べる実験室。';
+}
+
+// シェア本文: 結果を文章化 + ハッシュタグ + URL(引用したくなる一言を狙う)
+function buildShareText() {
+  const s = survivalStats();
+  const title = activeScenario ? `${activeScenario.emoji} ${activeScenario.title}` : '🪐 自由実験モード';
+  const outcome = activeScenario?.shareLine ?? freeOutcomeLine(s);
+  const result = (s.absorbed || s.escaped)
+    ? `→ ${s.years.toFixed(1)}年で 🔥${s.absorbed}個飲み込み / 🚀${s.escaped}個射出（生存 ${s.alive}/${s.total}）`
+    : `→ ${s.years.toFixed(1)}年経過、全${s.total}惑星が生存中`;
+  return `${title}\n${outcome}\n${result}\n\n#もしも宇宙ラボ #宇宙シミュレーション\n${APP_URL}`;
+}
+
+// ---- シェアメニュー ----
+const shareMenu = $('share-menu');
+function openShareMenu() {
+  if (mode !== 'solar') setMode('solar');
+  $('share-preview').textContent = buildShareText();
+  shareMenu.classList.remove('hidden');
+}
+function closeShareMenu() { shareMenu.classList.add('hidden'); }
+$('share-menu-close').addEventListener('click', closeShareMenu);
+$('share-image').addEventListener('click', () => { closeShareMenu(); shareImage(); });
+$('share-video').addEventListener('click', () => { closeShareMenu(); recordClip(); });
+$('share-x').addEventListener('click', () => {
+  window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(buildShareText()), '_blank');
+});
+$('share-line').addEventListener('click', () => {
+  window.open('https://line.me/R/msg/text/?' + encodeURIComponent(buildShareText()), '_blank');
+});
+$('share-copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(buildShareText());
+    toast('🔗 シェア用のテキストをコピーしました');
+  } catch {
+    toast('コピーできませんでした');
+  }
+  closeShareMenu();
+});
+
+// ---- 画像カード ----
+async function shareImage() {
+  const blob = await buildShareCardBlob();
+  const file = new File([blob], 'moshimo-space-lab.png', { type: 'image/png' });
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: 'もしも宇宙ラボ', text: buildShareText() });
+    } catch { /* キャンセル */ }
+  } else {
+    downloadBlob(blob, 'moshimo-space-lab.png');
+    toast('📸 結果カードを画像として保存しました');
+  }
+}
+
+async function buildShareCardBlob() {
   // 最新フレームを描き直してからキャプチャする
-  // (preserveDrawingBuffer なしでも同じタスク内なら確実に読み取れる)
   renderer.render(solar.scene, solarCam);
 
   const size = 1080;
@@ -293,22 +369,20 @@ async function shareResult() {
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, size, size);
 
-  // 画面をカバー配置で貼り付け
   const src = renderer.domElement;
   const s = Math.max(size / src.width, size / src.height);
   ctx.drawImage(src, (size - src.width * s) / 2, (size - src.height * s) / 2, src.width * s, src.height * s);
 
-  // 上下を暗くして文字を載せる
   let g = ctx.createLinearGradient(0, 0, 0, 230);
   g.addColorStop(0, 'rgba(0,0,8,0.88)');
   g.addColorStop(1, 'rgba(0,0,8,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, size, 230);
-  g = ctx.createLinearGradient(0, size - 330, 0, size);
+  g = ctx.createLinearGradient(0, size - 360, 0, size);
   g.addColorStop(0, 'rgba(0,0,8,0)');
   g.addColorStop(1, 'rgba(0,0,8,0.92)');
   ctx.fillStyle = g;
-  ctx.fillRect(0, size - 330, size, 330);
+  ctx.fillRect(0, size - 360, size, 360);
 
   ctx.fillStyle = '#ffe3b8';
   ctx.font = 'bold 46px sans-serif';
@@ -317,35 +391,103 @@ async function shareResult() {
   ctx.font = '32px sans-serif';
   ctx.fillText(activeScenario ? `${activeScenario.emoji} ${activeScenario.title}` : '自由実験モード', 40, 142);
 
+  // スコア(生存・飲み込み・射出)
   ctx.fillStyle = '#ffd97a';
-  ctx.font = 'bold 36px sans-serif';
-  ctx.fillText(formatSolarTime(solar.time), 40, size - 230);
+  ctx.font = 'bold 40px sans-serif';
+  ctx.fillText(scoreLine(), 40, size - 268);
+
+  ctx.fillStyle = '#ffd97a';
+  ctx.font = 'bold 32px sans-serif';
+  ctx.fillText(formatSolarTime(solar.time), 40, size - 214);
 
   ctx.fillStyle = '#dce8ff';
   ctx.font = '30px sans-serif';
   const recent = eventLog.filter((e) => !e.msg.startsWith('🧪')).slice(-3);
-  recent.forEach((e, i) => ctx.fillText(`${e.time} ${e.msg}`, 40, size - 170 + i * 44));
+  recent.forEach((e, i) => ctx.fillText(`${e.time} ${e.msg}`, 40, size - 156 + i * 42));
 
   ctx.fillStyle = '#8fa5cc';
   ctx.font = '26px sans-serif';
-  ctx.fillText(APP_URL, 40, size - 26);
+  ctx.fillText('#もしも宇宙ラボ　' + APP_URL, 40, size - 26);
 
-  const blob = await new Promise((res) => card.toBlob(res, 'image/png'));
-  const file = new File([blob], 'moshimo-space-lab.png', { type: 'image/png' });
-  if (navigator.canShare?.({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], title: 'もしも宇宙ラボ', text: `宇宙で実験してみた! ${APP_URL}` });
-    } catch {
-      /* ユーザーがキャンセル */
-    }
-  } else {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'moshimo-space-lab.png';
-    a.click();
-    URL.revokeObjectURL(a.href);
-    toast('📸 結果カードを画像として保存しました');
+  return new Promise((res) => card.toBlob(res, 'image/png'));
+}
+
+function downloadBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ---- 動画(崩壊クリップ)書き出し ----
+const VIDEO_TYPES = [
+  ['video/webm;codecs=vp9', 'webm'],
+  ['video/webm;codecs=vp8', 'webm'],
+  ['video/webm', 'webm'],
+  ['video/mp4', 'mp4'],
+];
+function pickVideoType() {
+  if (!window.MediaRecorder) return null;
+  for (const [mime, ext] of VIDEO_TYPES) {
+    try { if (MediaRecorder.isTypeSupported(mime)) return { mime, ext }; } catch { /* ignore */ }
   }
+  return null;
+}
+
+const recIndicator = $('rec-indicator');
+let recorder = null;
+const REC_SECONDS = 6;
+
+// キャンバスの映像を数秒録画して、崩壊の「動き」をそのままシェアする。
+// (静止画より圧倒的に伝わる = バズりの本命)
+function recordClip() {
+  if (recorder) { recorder.stop(); return; } // 撮影中にもう一度押したら早めに停止
+  const canStream = typeof renderer.domElement.captureStream === 'function';
+  const vtype = pickVideoType();
+  if (!canStream || !vtype) {
+    toast('このブラウザは動画書き出しに未対応です。📸 画像でシェアしてください');
+    return;
+  }
+  if (mode !== 'solar') setMode('solar');
+  solarPlaying = true;
+  updatePlayBtn();
+
+  const stream = renderer.domElement.captureStream(30);
+  const chunks = [];
+  try {
+    recorder = new MediaRecorder(stream, { mimeType: vtype.mime, videoBitsPerSecond: 8_000_000 });
+  } catch {
+    recorder = null;
+    toast('動画の初期化に失敗しました。📸 画像でシェアしてください');
+    return;
+  }
+  recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+  recorder.onstop = async () => {
+    recorder = null;
+    recIndicator.classList.add('hidden');
+    const blob = new Blob(chunks, { type: vtype.mime });
+    const file = new File([blob], `moshimo-space-lab.${vtype.ext}`, { type: vtype.mime });
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'もしも宇宙ラボ', text: buildShareText() });
+      } catch { /* キャンセル */ }
+    } else {
+      downloadBlob(blob, `moshimo-space-lab.${vtype.ext}`);
+      toast('🎬 崩壊の動画を保存しました');
+    }
+  };
+
+  recorder.start();
+  let remain = REC_SECONDS;
+  recIndicator.textContent = `⏺ REC ${remain}`;
+  recIndicator.classList.remove('hidden');
+  toast('🎬 これから6秒間を録画中…崩壊の瞬間を撮ろう!(もう一度シェアで停止)');
+  const iv = setInterval(() => {
+    remain--;
+    recIndicator.textContent = remain > 0 ? `⏺ REC ${remain}` : '⏺ 保存中…';
+    if (remain <= 0) { clearInterval(iv); if (recorder) recorder.stop(); }
+  }, 1000);
 }
 
 // ---------- 時間表示 ----------
