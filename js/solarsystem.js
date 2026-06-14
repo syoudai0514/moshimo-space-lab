@@ -678,13 +678,13 @@ export class SolarSystem {
     for (const b of this.bodies) {
       if (!b.alive) continue;
       const p = b.mesh.position.copy(b.pos).multiplyScalar(POS_SCALE);
-      // 影(黒い球)はブラックホールのとき、降着円盤テクスチャの影とほぼ同じ大きさに
-      b.mesh.scale.setScalar(Math.max(this.displayRadius(b) * (b.isBlackHole ? 1.0 : 1), 1e-6));
+      // 影(黒い球)はブラックホールのときテクスチャの影の中に収める(降着円盤を隠さない)
+      b.mesh.scale.setScalar(Math.max(this.displayRadius(b) * (b.isBlackHole ? 0.5 : 1), 1e-6));
       b.marker.position.copy(p);
       b.label.position.copy(p);
       if (b.isBlackHole && b.accretion) {
         b.accretion.position.copy(p);                         // カメラを向くビルボード
-        b.accretion.scale.setScalar(Math.max(this.displayRadius(b) * 6.5, 1.2));
+        b.accretion.scale.setScalar(Math.max(this.displayRadius(b) * 7.5, 1.4));
       }
     }
     const sun = this.bodies[0];
@@ -844,7 +844,8 @@ function makeBlackHoleTexture() {
   const S = 512;
   const cv = document.createElement('canvas');
   cv.width = cv.height = S;
-  const cx = S / 2, cy = S / 2, rs = S * 0.13;
+  const cx = S / 2, cy = S / 2, rs = S * 0.115;
+  const A = 3.3; // 円盤の半幅(端は楕円なので滑らかにすぼむ)
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
   const g = (z) => Math.exp(-(z * z));
   const ctx2 = cv.getContext('2d');
@@ -853,34 +854,34 @@ function makeBlackHoleTexture() {
   for (let i = 0; i < S; i++) {
     for (let j = 0; j < S; j++) {
       const nx = (j - cx) / rs, ny = (i - cy) / rs;
-      const r = Math.hypot(nx, ny), rm = Math.max(r, 0.22);
-      // 太い水平の円盤 + 手前を横切る芯 + レンズで持ち上がる上のアーチ + 下のうっすら
-      const diskH = Math.exp(-clamp(r - 1, 0, 9) * 0.40);
-      const disk0 = g(ny / 0.40) * diskH;
-      const coreband = g((ny - 0.16) / 0.16) * diskH * 1.25;
-      const arch = g((r - 1.24) / 0.30) * Math.pow(clamp(-ny / rm, 0, 1), 0.8) * 1.3;
-      const under = g((r - 1.18) / 0.22) * Math.pow(clamp(ny / rm, 0, 1), 1.2) * 0.5;
-      let bright = disk0 + coreband * 0.9 + arch + under;
+      const r = Math.hypot(nx, ny);
+      // 手前+左右の円盤(やや下の平たい楕円。端で滑らかにすぼむ。太い芯+広い裾で厚み)
+      const ef = Math.hypot(nx / A, (ny - 0.16) / 0.66);
+      const front = g((ef - 1) / 0.20) + g((ef - 1) / 0.5) * 0.35;
+      // レンズで持ち上がる上の太いアーチ(同じ横幅A → 端で前の円盤に滑らかに接続)
+      const et = Math.hypot(nx / A, (ny + 0.02) / 1.62);
+      const arch = (g((et - 1) / 0.20) + g((et - 1) / 0.5) * 0.3) * Math.pow(clamp(-ny + 0.35, 0, 3), 0.5) * 1.25;
+      let bright = front * 1.1 + arch;
       const dopp = clamp(1 + 1.35 * (-nx) / Math.max(r, 0.22), 0.1, 2.5);
       bright *= dopp;
       // 色: 内縁=白熱 → オレンジ → 外縁=深い赤
       const t = clamp((r - 1) / 2.0, 0, 1);
       const s1 = clamp(t / 0.4, 0, 1), s2 = clamp((t - 0.4) / 0.6, 0, 1);
-      let cr = 1.0 + (1.0 - 1.0) * s1; cr += (0.45 - cr) * s2;
-      let cg = 0.70 + (0.34 - 0.70) * s1; cg += (0.06 - cg) * s2;
-      let cb = 0.38 + (0.09 - 0.38) * s1; cb += (0.02 - cb) * s2;
+      let cr = 1.0; cr += (0.5 - cr) * s2;
+      let cg = 0.74 + (0.34 - 0.74) * s1; cg += (0.07 - cg) * s2;
+      let cb = 0.42 + (0.08 - 0.42) * s1; cb += (0.02 - cb) * s2;
       const warm = clamp(dopp / 1.4, 0.4, 1.15);
       cg *= warm; cb *= warm;
       let R = cr * bright, G = cg * bright, B = cb * bright;
-      const photon = g((r - 1) / 0.05) * 0.9;
-      R += photon; G += photon * 0.88; B += photon * 0.7;
+      const photon = g((r - 1) / 0.05) * 0.6;
+      R += photon; G += photon * 0.9; B += photon * 0.72;
       // 影: 手前(下)の帯は残し、中心を黒く
-      const front = ny > 0 && Math.abs(ny - 0.16) < 0.26;
+      const frontBand = ny > 0.4 && front > 0.04;
       const fade = r < 0.97 ? clamp((r - 0.66) / 0.31, 0, 1) : 1;
       R *= fade; G *= fade; B *= fade;
-      if (r < 0.6 && !front) { R = 0; G = 0; B = 0; }
+      if (r < 0.64 && !frontBand) { R = 0; G = 0; B = 0; }
       // トーンマップ
-      R = R / (1 + 0.5 * R); G = G / (1 + 0.5 * G); B = B / (1 + 0.5 * B);
+      R = R / (1 + 0.45 * R); G = G / (1 + 0.45 * G); B = B / (1 + 0.45 * B);
       const k = (i * S + j) * 4;
       d[k] = clamp(R, 0, 1) * 255; d[k + 1] = clamp(G, 0, 1) * 255; d[k + 2] = clamp(B, 0, 1) * 255; d[k + 3] = 255;
     }
