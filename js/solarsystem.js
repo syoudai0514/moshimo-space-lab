@@ -306,9 +306,22 @@ export class SolarSystem {
 
   _checkEscape() {
     const sun = this.bodies[0];
+    const sunMass = this.effMass(sun);
+    // 太陽が(質量を持って)存在するときは「第二宇宙速度(脱出速度)を超えた瞬間」で判定。
+    // 太陽が消えた/質量がほぼ無いシナリオでは中心質量が無いので、従来どおり遠方離脱で判定。
+    const velCheck = sun.alive && sunMass > 1e-4;
     for (const b of this.bodies) {
       if (b.key === 'sun' || !b.alive || b.escaped) continue;
-      if (b.pos.distanceTo(sun.pos) > ESCAPE_DIST) {
+      const r = b.pos.distanceTo(sun.pos);
+      let unbound = false;
+      if (velCheck && r > 1e-6) {
+        // v ≥ √(2GM/r) なら軌道は双曲線(非束縛)。わずかな余白で境界(放物線)のチラつきを防ぐ。
+        const vrel2 = b.vel.distanceToSquared(sun.vel);
+        const vEsc2 = 2 * G * sunMass / r;
+        if (vrel2 >= vEsc2 * 1.02) unbound = true;
+      }
+      if (!unbound && r > ESCAPE_DIST) unbound = true; // 中心質量が無い場合などの保険
+      if (unbound) {
         b.escaped = true;
         this.onEvent?.({ type: 'escaped', key: b.key });
       }

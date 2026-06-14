@@ -237,68 +237,65 @@ function sfxAbsorbed() {
   imp.stop(t0 + 1.1);
 }
 
-// 太陽系の彼方へ飛び去った:
-// 明るい上昇音はやめ、低く重いうなりが片側へパンしながら遠ざかってフェードする。
-// ドップラーで少しピッチが下がり、長いリバーブの尾で「闇に消えていく」余韻を残す。
+// 第二宇宙速度を超えて太陽系の外へ:
+// ダークな「キラーン」。中音域のベル倍音が、軽く上がってから長く下がり(キラ→ン)、
+// 高速トレモロでシマー(きらめき)、全体をローパスで暗く、片側へパンして遠ざかり、
+// 長いリバーブの尾で闇へ消える。明るすぎ・鋭すぎ(ポップ)を避ける。
 function sfxEscaped() {
   const now = ctx.currentTime;
-  const dur = 1.9;
+  const dur = 2.6;
 
+  // 全体を暗くするローパス
   const lp = ctx.createBiquadFilter();
   lp.type = 'lowpass';
-  lp.frequency.setValueAtTime(820, now);
-  lp.frequency.exponentialRampToValueAtTime(130, now + dur);
-  lp.Q.value = 2;
+  lp.frequency.value = 2400;
 
-  const g = ctx.createGain();
-  g.gain.setValueAtTime(0.0001, now);
-  g.gain.linearRampToValueAtTime(0.4, now + 0.3);    // やわらかく立ち上げる(ポップ防止)
-  g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+  // きらめき(トレモロ): 速いLFOで音量を細かく揺らす
+  const trem = ctx.createGain();
+  trem.gain.value = 0.8;
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = 9;
+  const lfoG = ctx.createGain();
+  lfoG.gain.value = 0.3;
+  lfo.connect(lfoG).connect(trem.gain);
+  lfo.start(now);
+  lfo.stop(now + dur);
 
-  // 片側へパンして遠ざかる
-  let tail = g;
+  // 信号経路: 倍音 → trem → lp →(pan)→ sfxBus
+  trem.connect(lp);
   if (ctx.createStereoPanner) {
-    const p = ctx.createStereoPanner();
-    p.pan.setValueAtTime(0, now);
-    p.pan.linearRampToValueAtTime(Math.random() < 0.5 ? -1 : 1, now + dur * 0.85);
-    g.connect(p);
-    tail = p;
+    const side = Math.random() < 0.5 ? -1 : 1;
+    const pan = ctx.createStereoPanner();
+    pan.pan.setValueAtTime(0.2 * side, now);
+    pan.pan.linearRampToValueAtTime(0.92 * side, now + dur); // 遠ざかる
+    lp.connect(pan).connect(sfxBus);
+  } else {
+    lp.connect(sfxBus);
   }
-  tail.connect(sfxBus);
 
-  // 低く重いうなり(下降 = ドップラー)
-  for (const [f0, f1, type, gain] of [
-    [175, 52, 'sawtooth', 0.45],
-    [88, 30, 'sine', 0.8],
-  ]) {
+  // 余韻つきのベル倍音(中音域中心 = ダーク)。最初に軽く上がって長く下がる(キラ→ン)。
+  const base = 330; // E4 くらい。高すぎないのでダーク
+  const partials = [
+    [1.0, 1.0, 2.5],
+    [1.5, 0.5, 2.1],   // 完全5度
+    [2.0, 0.3, 1.7],
+    [2.84, 0.16, 1.3], // わずかに非整数 → 金属的なシマー
+  ];
+  for (const [ratio, amp, decay] of partials) {
     const o = ctx.createOscillator();
-    o.type = type;
-    o.frequency.setValueAtTime(f0, now);
-    o.frequency.exponentialRampToValueAtTime(f1, now + dur);
-    const og = ctx.createGain();
-    og.gain.value = gain;
-    o.connect(og).connect(lp);
+    o.type = 'sine';
+    const f = base * ratio;
+    o.frequency.setValueAtTime(f * 0.96, now);
+    o.frequency.exponentialRampToValueAtTime(f * 1.08, now + 0.16); // キラ↑
+    o.frequency.exponentialRampToValueAtTime(f * 0.9, now + decay); // ーン↓
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(amp * 0.45, now + 0.04);    // やわらかい立ち上がり
+    g.gain.exponentialRampToValueAtTime(0.0001, now + decay);
+    o.connect(g).connect(trem);
     o.start(now);
-    o.stop(now + dur + 0.1);
+    o.stop(now + decay + 0.1);
   }
-  lp.connect(g);
-
-  // 低い風切り(下へスイープして遠ざかる)
-  const n = ctx.createBufferSource();
-  n.buffer = getNoise();
-  n.loop = true;
-  const bp = ctx.createBiquadFilter();
-  bp.type = 'bandpass';
-  bp.Q.value = 1.4;
-  bp.frequency.setValueAtTime(550, now);
-  bp.frequency.exponentialRampToValueAtTime(110, now + dur);
-  const ng = ctx.createGain();
-  ng.gain.setValueAtTime(0.0001, now);
-  ng.gain.linearRampToValueAtTime(0.14, now + 0.35);
-  ng.gain.exponentialRampToValueAtTime(0.0001, now + dur);
-  n.connect(bp).connect(ng).connect(tail);
-  n.start(now);
-  n.stop(now + dur + 0.1);
 }
 
 // イベント種別に応じた効果音を鳴らす。🔇(消音)のときは鳴らさない。
