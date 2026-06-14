@@ -658,8 +658,8 @@ export class SolarSystem {
     for (const b of this.bodies) {
       if (!b.alive) continue;
       const p = b.mesh.position.copy(b.pos).multiplyScalar(POS_SCALE);
-      // 影(黒い球)はブラックホールのとき少し大きめにして「影」を埋める
-      b.mesh.scale.setScalar(Math.max(this.displayRadius(b) * (b.isBlackHole ? 1.5 : 1), 1e-6));
+      // 影(黒い球)はブラックホールのとき、降着円盤テクスチャの影とほぼ同じ大きさに
+      b.mesh.scale.setScalar(Math.max(this.displayRadius(b) * (b.isBlackHole ? 1.0 : 1), 1e-6));
       b.marker.position.copy(p);
       b.label.position.copy(p);
       if (b.isBlackHole && b.accretion) {
@@ -815,55 +815,79 @@ function softCircle() {
   return _softTex;
 }
 
-// ブラックホールの見た目(インターステラー型)。降着円盤が重力レンズで影の上下に
-// 回り込む様子を、カメラを向くビルボード用テクスチャとして描く。透明な中心=影。
+// ブラックホールの見た目(インターステラー/ガルガンチュア型)。カメラを向くビルボード。
+// 重力レンズで降着円盤の向こう側が影の「上下に回り込む」ハロー、手前側は影の前を横切る、
+// ドップラーで左(接近側)が明るく右(後退側)が暗い、光子リング、影、を重ねて描く。
 function makeBlackHoleTexture() {
-  const S = 512;
+  const S = 1024;
   const cv = document.createElement('canvas');
   cv.width = cv.height = S;
   const x = cv.getContext('2d');
-  const R = S * 0.2;
+  const Rs = S * 0.15;          // 影(シャドウ)半径
   x.translate(S / 2, S / 2);
 
-  // 降着円盤の光輪(影の上下に回り込む)。内側=白熱→オレンジ→外縁=赤。
-  for (let i = 0; i < 3; i++) {
+  // 細い帯を1本描く(円盤のフィラメント)。frac:0=内縁(白熱)→1=外縁(赤)
+  const band = (rx, ry, frac, alpha) => {
+    const warm = 1 - frac;
+    const r = 255;
+    const g = Math.round(110 + 140 * warm);
+    const b = Math.round(35 + 130 * warm * warm);
+    const grad = x.createLinearGradient(-rx, 0, rx, 0);
+    grad.addColorStop(0.00, `rgba(255,255,250,${Math.min(1, alpha * 1.8)})`); // 左=接近=白く明るい
+    grad.addColorStop(0.35, `rgba(${r},${g},${b},${alpha})`);
+    grad.addColorStop(1.00, `rgba(${(r * 0.6) | 0},${(g * 0.35) | 0},${(b * 0.35) | 0},${alpha * 0.4})`); // 右=後退=暗い赤
+    x.strokeStyle = grad;
+    x.lineWidth = Math.max(1.2, ry * 0.05);
     x.beginPath();
-    x.ellipse(0, 0, R * (1.12 + i * 0.06), R * (0.98 + i * 0.06), 0, 0, Math.PI * 2);
-    x.lineWidth = R * 0.14;
-    const g = x.createLinearGradient(-R, 0, R, 0);
-    g.addColorStop(0.0, 'rgba(255,235,200,0.95)'); // 内縁は白熱
-    g.addColorStop(0.45, 'rgba(255,95,35,0.65)');  // オレンジ
-    g.addColorStop(1.0, 'rgba(190,25,18,0.45)');   // 外縁は赤
-    x.strokeStyle = g;
-    x.shadowColor = 'rgba(255,70,35,0.95)';        // 赤いにじみ
-    x.shadowBlur = R * 0.6;
+    x.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
     x.stroke();
-  }
-  // 横に伸びる円盤(edge-on)。左右(回転で動く側)が明るく、上下は薄い
-  for (const sgn of [1, -1]) {
-    x.beginPath();
-    x.ellipse(0, sgn * R * 0.05, S * 0.46, R * 0.46, 0, 0, Math.PI * 2);
-    x.lineWidth = R * 0.09;
-    const g2 = x.createLinearGradient(-S * 0.46, 0, S * 0.46, 0);
-    g2.addColorStop(0.0, 'rgba(255,225,190,0.9)');
-    g2.addColorStop(0.45, 'rgba(220,60,25,0)');
-    g2.addColorStop(0.55, 'rgba(220,60,25,0)');
-    g2.addColorStop(1.0, 'rgba(170,25,15,0.4)');   // 外縁は赤
-    x.strokeStyle = g2;
-    x.shadowColor = 'rgba(255,70,35,0.85)';
-    x.shadowBlur = R * 0.5;
-    x.stroke();
-  }
-  // 光子リング(影のふち。細く明るい。赤みを帯びる)
-  x.beginPath();
-  x.ellipse(0, 0, R * 1.0, R * 0.9, 0, 0, Math.PI * 2);
-  x.lineWidth = R * 0.03;
-  x.strokeStyle = 'rgba(255,210,170,1)';
-  x.shadowColor = 'rgba(255,120,70,1)';
-  x.shadowBlur = R * 0.35;
-  x.stroke();
+  };
 
-  return new THREE.CanvasTexture(cv);
+  x.globalCompositeOperation = 'lighter'; // 重ねるほど明るく(発光)
+
+  // 1) 平らな降着円盤(edge-on)。内側ほど白熱、外側ほど赤。多数の帯でフィラメント感。
+  const diskRx = S * 0.485, diskRy = Rs * 0.66;
+  for (let i = 0; i < 90; i++) {
+    const f = i / 90;
+    const rx = Rs * 1.05 + f * (diskRx - Rs * 1.05);
+    const ry = Rs * 0.14 + f * (diskRy - Rs * 0.14);
+    band(rx, ry, f, (0.045 + 0.09 * (1 - f)) * (0.85 + 0.3 * Math.random()));
+  }
+
+  // 2) レンズで持ち上がったハロー(円盤の向こう側が影の上下に回り込む輪)。ほぼ円形。
+  for (let i = 0; i < 60; i++) {
+    const f = i / 60;
+    const rr = Rs * 1.03 + f * (Rs * 0.55);
+    band(rr, rr * 0.97, f * 0.6, (0.05 + 0.11 * (1 - f)) * (0.85 + 0.3 * Math.random()));
+  }
+
+  // 3) 光子リング(影のふち。極細・極明)＋内側のにじみ
+  x.lineWidth = Rs * 0.018;
+  x.strokeStyle = 'rgba(255,245,225,0.95)';
+  x.beginPath(); x.ellipse(0, 0, Rs * 1.0, Rs * 0.97, 0, 0, Math.PI * 2); x.stroke();
+  x.lineWidth = Rs * 0.07;
+  x.strokeStyle = 'rgba(255,160,80,0.45)';
+  x.beginPath(); x.ellipse(0, 0, Rs * 1.05, Rs * 1.0, 0, 0, Math.PI * 2); x.stroke();
+
+  // 4) シャドウをくっきり: 中心を黒で抜く(向こう側の円盤・ハローが影に被らないように)
+  x.globalCompositeOperation = 'destination-out';
+  x.beginPath(); x.ellipse(0, 0, Rs * 0.97, Rs * 0.94, 0, 0, Math.PI * 2); x.fill();
+
+  // 5) 手前側の円盤を影の前に描き直す(下半分だけ = 影の手前を横切る帯)
+  x.save();
+  x.globalCompositeOperation = 'lighter';
+  x.beginPath(); x.rect(-S, 0, 2 * S, S); x.clip(); // 下半分にクリップ
+  for (let i = 0; i < 60; i++) {
+    const f = i / 60;
+    const rx = Rs * 0.55 + f * (diskRx - Rs * 0.55);
+    const ry = Rs * 0.10 + f * (diskRy - Rs * 0.10);
+    band(rx, ry, f, (0.05 + 0.10 * (1 - f)) * (0.85 + 0.3 * Math.random()));
+  }
+  x.restore();
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.anisotropy = 4;
+  return tex;
 }
 
 // 遠方の背景星(動かない)

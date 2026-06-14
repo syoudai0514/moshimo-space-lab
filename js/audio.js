@@ -342,7 +342,7 @@ function sfxSupernova() {
   bp.frequency.exponentialRampToValueAtTime(200, now + 2.2);
   const ng = ctx.createGain();
   ng.gain.setValueAtTime(0.0001, now);
-  ng.gain.exponentialRampToValueAtTime(0.6, now + 0.05);
+  ng.gain.exponentialRampToValueAtTime(0.22, now + 0.12); // 音量控えめ・立ち上がりも柔らかく
   ng.gain.exponentialRampToValueAtTime(0.0001, now + 2.4);
   n.connect(bp).connect(ng).connect(sfxBus);
   n.start(now); n.stop(now + 2.5);
@@ -353,7 +353,7 @@ function sfxSupernova() {
   o.frequency.exponentialRampToValueAtTime(24, now + 1.6);
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, now);
-  g.gain.exponentialRampToValueAtTime(0.8, now + 0.04);
+  g.gain.exponentialRampToValueAtTime(0.34, now + 0.06); // ドスンを控えめに
   g.gain.exponentialRampToValueAtTime(0.0001, now + 2.0);
   o.connect(g).connect(sfxBus);
   o.start(now); o.stop(now + 2.1);
