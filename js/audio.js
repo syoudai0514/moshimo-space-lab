@@ -12,7 +12,16 @@ let reverb = null;
 let sfxBus = null;     // 効果音用バス(BGMのON/OFFやフェードと独立して鳴る)
 let playing = false;   // BGM(ドローン)が再生中か
 let dronesBuilt = false;
+let unlocked = false;  // 最初のユーザー操作で音声を解禁したか
 let bellTimer = null;
+
+// 最初のユーザー操作の中で呼ぶ。AudioContext をこのジェスチャー内で生成/再開して
+// ブラウザの自動再生制限を解除する。これ以前は音を一切鳴らさない(suspended生成を避ける)。
+export function unlockAudio() {
+  ensureGraph();
+  if (ctx.state === 'suspended') ctx.resume();
+  unlocked = true;
+}
 
 export function bgmEnabled() {
   try { return localStorage.getItem(STORE) !== 'off'; } catch { return true; } // 既定 ON
@@ -131,12 +140,13 @@ export function startBGM() {
   ensureGraph();
   if (!dronesBuilt) build();
   if (ctx.state === 'suspended') ctx.resume();
+  unlocked = true;
   if (playing) return;
   playing = true;
   const t = ctx.currentTime;
   master.gain.cancelScheduledValues(t);
   master.gain.setValueAtTime(master.gain.value, t);
-  master.gain.linearRampToValueAtTime(0.12, t + 3); // ゆっくりフェードイン
+  master.gain.linearRampToValueAtTime(0.12, t + 1.4); // フェードイン(短め=押してすぐ聞こえる)
   scheduleBell();
 }
 
@@ -300,8 +310,7 @@ function sfxEscaped() {
 
 // イベント種別に応じた効果音を鳴らす。🔇(消音)のときは鳴らさない。
 export function playSfx(type) {
-  if (!bgmEnabled()) return;
-  ensureGraph();
+  if (!unlocked || !bgmEnabled()) return; // 解禁前は鳴らさない(suspendedな文脈を作らない)
   if (ctx.state === 'suspended') ctx.resume();
   if (type === 'absorbed') sfxAbsorbed();
   else if (type === 'escaped') sfxEscaped();

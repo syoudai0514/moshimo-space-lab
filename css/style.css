@@ -363,10 +363,10 @@ ruby rt {
 /* ---------- アトラクトのキャッチコピー ---------- */
 #attract-caption {
   position: fixed;
-  top: 15%;
+  top: calc(var(--top-offset, 60px) + 16px);
   left: 50%;
   transform: translateX(-50%);
-  width: min(92%, 640px);
+  width: min(94%, 640px);
   text-align: center;
   z-index: 18;
   pointer-events: none;
