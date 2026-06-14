@@ -15,10 +15,17 @@ let dronesBuilt = false;
 let unlocked = false;  // 最初のユーザー操作で音声を解禁したか
 let bellTimer = null;
 
-// 最初のユーザー操作の中で呼ぶ。AudioContext をこのジェスチャー内で生成/再開して
-// ブラウザの自動再生制限を解除する。これ以前は音を一切鳴らさない(suspended生成を避ける)。
+// 最初のユーザー操作の中で呼ぶ。AudioContext をこのジェスチャー内で生成/再開し、
+// iOS 向けに無音バッファを1回鳴らして完全にアンロックする。これ以前は音を鳴らさない。
 export function unlockAudio() {
   ensureGraph();
+  try {
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);                 // iOS: ジェスチャー内で実際に音源を鳴らすのが鍵
+  } catch { /* ignore */ }
   if (ctx.state === 'suspended') ctx.resume();
   unlocked = true;
 }

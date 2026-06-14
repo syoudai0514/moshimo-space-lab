@@ -7,7 +7,7 @@ import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX 
 import { SCENARIOS } from './scenarios.js?v=3';
 import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=9';
 import { SCENARIO_I18N, OBSERVE_I18N } from './i18n-data.js?v=1';
-import { bgmEnabled, startBGM, toggleBGM, isPlaying as bgmIsPlaying, playSfx, unlockAudio } from './audio.js?v=5';
+import { bgmEnabled, startBGM, toggleBGM, isPlaying as bgmIsPlaying, playSfx, unlockAudio } from './audio.js?v=6';
 
 const SI = (sc) => SCENARIO_I18N[getLang()]?.[sc.id]; // 現在言語の実験翻訳(無ければ undefined)
 // 実験の表示用タイトル・問い。日本語のときは子供向けにふりがな付き。
@@ -1405,13 +1405,18 @@ const bgmBtn = $('bgm-toggle');
 const updateBgmBtn = () => { bgmBtn.textContent = bgmEnabled() ? '🔊' : '🔇'; };
 updateBgmBtn();
 bgmBtn.addEventListener('click', () => { toggleBGM(); updateBgmBtn(); });
-let bgmAutoStarted = false;
-document.addEventListener('pointerdown', (e) => {
-  if (bgmAutoStarted || (e.target.closest && e.target.closest('#bgm-toggle'))) return;
-  bgmAutoStarted = true;
+let audioKicked = false;
+function kickAudio(e) {
+  if (audioKicked) return;
+  if (e && e.target && e.target.closest && e.target.closest('#bgm-toggle')) return; // 🔊ボタンは自前で処理
+  audioKicked = true;
   unlockAudio();                 // このジェスチャー内で音声を解禁(以後 効果音も鳴る)
   if (bgmEnabled()) startBGM();
-});
+}
+// iOS/Android で確実に拾えるよう複数のイベントで一度だけ解禁
+for (const evt of ['pointerdown', 'touchend', 'mousedown', 'keydown']) {
+  document.addEventListener(evt, kickAudio, { passive: true });
+}
 
 // ヘッダーの高さ(言語やふりがなで段数・高さが変わる)に合わせて、
 // 上部に貼り付くパネル類の位置を下げる。これで「天体の設定」等との重なりを防ぐ。
