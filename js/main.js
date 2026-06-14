@@ -1200,21 +1200,43 @@ canvas.addEventListener('pointercancel', (e) => endPointer(e, true));
 // 初回ロード時、何も操作しないあいだは派手な「もしも」を自動再生し続ける。
 // 流入した人が最初の数秒で「崩壊」を目にして、自分でも触りたくなる導線。
 // 画面に触れる/何か操作した時点で解除され、まっさらな太陽系から遊び始められる。
-const ATTRACT_IDS = ['sun-vanish', 'jupiter-star', 'mars-heavy', 'all-fall', 'jupiter-monster', 'sun-mercury-swap'];
+const ATTRACT_IDS = ['jupiter-monster', 'sun-mercury-swap', 'jupiter-star', 'mars-heavy', 'all-fall'];
 const ATTRACT_PERIOD = 13; // 秒ごとに次のシナリオへ切り替え
+const OPENING_CALM = 1.0;        // オープニング: まず普通に公転を見せる秒数(溜め)
+const OPENING_SPEED = '0.25';    // 溜めのあいだはゆったり
+const OPENING_BANG_SPEED = '1';  // 崩壊の瞬間にテンポアップ(惑星が飛び去る)
 let attractMode = false;
 let attractTimer = 0;
 let attractIdx = -1;
+let attractFirst = true;       // 初回サイクルだけ専用の「掴み」演出
+let attractBangPending = false;
 
 const attractHint = $('attract-hint');
 
 function startAttract() {
   attractMode = true;
+  attractFirst = true;
   attractHint.classList.remove('hidden');
   nextAttract();
 }
 
 function nextAttract() {
+  attractTimer = 0;
+  if (attractFirst) {
+    // ── オープニング(最初の掴み) ──
+    // 見慣れた太陽系を約1秒ふつうに回し、そのあといきなり太陽を消して
+    // 全惑星を接線方向へ一斉に飛ばす。「平常 → 崩壊」のコントラストが最強のフック。
+    attractFirst = false;
+    attractIdx = -1;
+    solar.reset();
+    clearLog();
+    speedSelect.value = OPENING_SPEED;
+    attractBangPending = true;
+    solarPlaying = true;
+    return;
+  }
+  // ── 2巡目以降: ランダムに派手なシナリオ ──
+  attractBangPending = false;
   let i;
   do { i = Math.floor(Math.random() * ATTRACT_IDS.length); }
   while (i === attractIdx && ATTRACT_IDS.length > 1);
@@ -1227,12 +1249,12 @@ function nextAttract() {
     speedSelect.value = sc.speed;
   }
   solarPlaying = true;
-  attractTimer = 0;
 }
 
 function stopAttract() {
   if (!attractMode) return;
   attractMode = false;
+  attractBangPending = false;
   attractHint.classList.add('hidden');
   endScenario();
   solar.reset();
@@ -1259,6 +1281,12 @@ function animate() {
   if (mode === 'solar') {
     if (attractMode) {
       attractTimer += dt;
+      // オープニングの「溜め」が終わったら、位置・速度はそのまま太陽だけ消して崩壊させる
+      if (attractBangPending && attractTimer >= OPENING_CALM) {
+        attractBangPending = false;
+        SCENARIOS.find((s) => s.id === 'sun-vanish')?.setup(solar);
+        speedSelect.value = OPENING_BANG_SPEED;
+      }
       if (attractTimer >= ATTRACT_PERIOD) nextAttract();
     }
     const dragging = pointerState !== null && pointerState.dragging;
