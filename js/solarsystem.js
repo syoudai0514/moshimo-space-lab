@@ -153,7 +153,7 @@ export class SolarSystem {
     this.glow.visible = true;
     this.light.intensity = 3;
     // 進行中の爆発演出を片付ける
-    for (const ex of this.explosions) this.scene.remove(ex.sprite);
+    for (const ex of this.explosions) this.scene.remove(ex.obj);
     this.explosions.length = 0;
     const momentum = new THREE.Vector3();
     for (const b of this.bodies) {
@@ -319,31 +319,21 @@ export class SolarSystem {
     if (b.isBlackHole) return;
     b.isBlackHole = true;
     b.radiusKm = Math.max(b.radiusKm, 696000 * 0.6); // 見えるコンパクト天体に
-    b.mesh.material.color.setHex(0x05060a);          // 真っ黒
-    // 降着グロー(青白く高温)
-    const acc = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: makeGlowTexture(), color: 0x9fd0ff, transparent: true, opacity: 0.95,
-      depthWrite: false, blending: THREE.AdditiveBlending,
+    b.mesh.material.color.setHex(0x000000);          // 影(背景の星を隠す黒い球)
+    // ブラックホール本体: カメラを向くビルボード。降着円盤が重力レンズで影の上下に
+    // 回り込む「インターステラー型」の見た目をテクスチャで表現。
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: makeBlackHoleTexture(), transparent: true, depthWrite: false,
+      blending: THREE.AdditiveBlending,
     }));
-    this.scene.add(acc);
-    b.accretion = acc;
-    // 降着円盤(オレンジ→白に光るリング。親メッシュと一緒にスケール)
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(1.5, 2.8, 64),
-      new THREE.MeshBasicMaterial({
-        color: 0xffd9a0, side: THREE.DoubleSide, transparent: true,
-        opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false,
-      })
-    );
-    ring.rotation.x = Math.PI / 2 - 0.4;
-    b.mesh.add(ring);
-    b.accRing = ring;
-    if (b.key === 'sun') this.glow.visible = false; // 太陽の光芒は降着グローに置き換え
+    this.scene.add(spr);
+    b.accretion = spr;
+    if (b.key === 'sun') this.glow.visible = false; // 太陽の光芒は消す
     this._supernova(b);
     this.onEvent?.({ type: 'supernova', key: b.key });
   }
 
-  // 超新星爆発: 周囲を吹き飛ばす衝撃波 + 画面内の閃光スプライト
+  // 超新星爆発: 周囲を吹き飛ばす衝撃波 + 白い大閃光 + オレンジの後光 + 色とりどりのデブリ
   _supernova(b) {
     const R = 35; // 影響範囲(AU)
     for (const o of this.bodies) {
@@ -353,13 +343,48 @@ export class SolarSystem {
       if (r < 1e-3 || r > R) continue;
       o.vel.addScaledVector(d.normalize(), 7 / (r + 0.5)); // 近いほど強く吹き飛ばす
     }
-    const fl = new THREE.Sprite(new THREE.SpriteMaterial({
+    const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    const origin = b.pos.clone().multiplyScalar(POS_SCALE);
+    const baseR = Math.max(this.displayRadius(b), 1.5);
+
+    const flash = new THREE.Sprite(new THREE.SpriteMaterial({
       map: makeGlowTexture(), color: 0xffffff, transparent: true, opacity: 1,
       depthWrite: false, blending: THREE.AdditiveBlending,
     }));
-    fl.position.copy(b.pos).multiplyScalar(POS_SCALE);
-    this.scene.add(fl);
-    this.explosions.push({ sprite: fl, start: (typeof performance !== 'undefined' ? performance.now() : Date.now()), base: Math.max(this.displayRadius(b), 1) });
+    flash.position.copy(origin);
+    this.scene.add(flash);
+    this.explosions.push({ kind: 'sprite', obj: flash, start: now, dur: 0.7, s0: baseR * 4, s1: baseR * 75, o0: 1, p: 2 });
+
+    const after = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: makeGlowTexture(), color: 0xff8a3c, transparent: true, opacity: 0.9,
+      depthWrite: false, blending: THREE.AdditiveBlending,
+    }));
+    after.position.copy(origin);
+    this.scene.add(after);
+    this.explosions.push({ kind: 'sprite', obj: after, start: now, dur: 2.2, s0: baseR * 6, s1: baseR * 130, o0: 0.9, p: 1.5 });
+
+    // 色とりどりのデブリ(超新星残骸=カニ星雲のように飛び散る)
+    const N = 180;
+    const pos = new Float32Array(N * 3), col = new Float32Array(N * 3), vel = new Float32Array(N * 3);
+    const PAL = [[1, .55, .2], [1, .85, .45], [.35, .9, 1], [1, .4, .75], [.6, 1, .85], [1, 1, 1]];
+    for (let i = 0; i < N; i++) {
+      const u = Math.random() * 2 - 1, ph = Math.random() * Math.PI * 2, s = Math.sqrt(1 - u * u);
+      const sp = 8 + Math.random() * 36; // 表示単位/秒
+      pos[i * 3] = origin.x; pos[i * 3 + 1] = origin.y; pos[i * 3 + 2] = origin.z;
+      vel[i * 3] = s * Math.cos(ph) * sp; vel[i * 3 + 1] = u * sp; vel[i * 3 + 2] = s * Math.sin(ph) * sp;
+      const c = PAL[(Math.random() * PAL.length) | 0];
+      col[i * 3] = c[0]; col[i * 3 + 1] = c[1]; col[i * 3 + 2] = c[2];
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const pts = new THREE.Points(geo, new THREE.PointsMaterial({
+      size: 5, sizeAttenuation: false, vertexColors: true, transparent: true,
+      opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending,
+    }));
+    pts.frustumCulled = false;
+    this.scene.add(pts);
+    this.explosions.push({ kind: 'particles', obj: pts, start: now, dur: 2.8, ox: origin.x, oy: origin.y, oz: origin.z, vel });
   }
 
   _revertBlackHole(b) {
@@ -608,12 +633,13 @@ export class SolarSystem {
     for (const b of this.bodies) {
       if (!b.alive) continue;
       const p = b.mesh.position.copy(b.pos).multiplyScalar(POS_SCALE);
-      b.mesh.scale.setScalar(Math.max(this.displayRadius(b), 1e-6));
+      // 影(黒い球)はブラックホールのとき少し大きめにして「影」を埋める
+      b.mesh.scale.setScalar(Math.max(this.displayRadius(b) * (b.isBlackHole ? 1.5 : 1), 1e-6));
       b.marker.position.copy(p);
       b.label.position.copy(p);
       if (b.isBlackHole && b.accretion) {
-        b.accretion.position.copy(p);
-        b.accretion.scale.setScalar(Math.max(this.displayRadius(b) * 5, 0.6));
+        b.accretion.position.copy(p);                         // カメラを向くビルボード
+        b.accretion.scale.setScalar(Math.max(this.displayRadius(b) * 6.5, 1.2));
       }
     }
     const sun = this.bodies[0];
@@ -632,17 +658,27 @@ export class SolarSystem {
     if (src) { this.light.position.copy(src.mesh.position); this.light.intensity = 3; }
     else this.light.intensity = 0;
 
-    // 超新星爆発の閃光: 時間とともに膨張・減衰して消える
+    // 超新星爆発の演出: 閃光・後光(膨張して減衰)とデブリ(飛び散って減衰)
     if (this.explosions.length) {
       const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
       for (let i = this.explosions.length - 1; i >= 0; i--) {
         const ex = this.explosions[i];
-        const age = (now - ex.start) / 1000;
-        const dur = 1.3;
-        if (age >= dur) { this.scene.remove(ex.sprite); this.explosions.splice(i, 1); continue; }
-        const k = age / dur;
-        ex.sprite.scale.setScalar(ex.base * (3 + k * 60));
-        ex.sprite.material.opacity = (1 - k) * (1 - k);
+        const k = ((now - ex.start) / 1000) / ex.dur;
+        if (k >= 1) { this.scene.remove(ex.obj); this.explosions.splice(i, 1); continue; }
+        if (ex.kind === 'particles') {
+          const age = k * ex.dur;
+          const arr = ex.obj.geometry.attributes.position.array;
+          for (let j = 0; j < arr.length; j += 3) {
+            arr[j] = ex.ox + ex.vel[j] * age;
+            arr[j + 1] = ex.oy + ex.vel[j + 1] * age;
+            arr[j + 2] = ex.oz + ex.vel[j + 2] * age;
+          }
+          ex.obj.geometry.attributes.position.needsUpdate = true;
+          ex.obj.material.opacity = (1 - k);
+        } else {
+          ex.obj.scale.setScalar(ex.s0 + (ex.s1 - ex.s0) * k);
+          ex.obj.material.opacity = ex.o0 * Math.pow(1 - k, ex.p || 1);
+        }
       }
     }
   }
@@ -735,6 +771,57 @@ function makeGlowTexture() {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 128, 128);
   return new THREE.CanvasTexture(c);
+}
+
+// ブラックホールの見た目(インターステラー型)。降着円盤が重力レンズで影の上下に
+// 回り込む様子を、カメラを向くビルボード用テクスチャとして描く。透明な中心=影。
+function makeBlackHoleTexture() {
+  const S = 512;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const x = cv.getContext('2d');
+  const R = S * 0.2;
+  x.translate(S / 2, S / 2);
+
+  // 降着円盤の光輪(影の上下に回り込む。左=近づく側が明るい=ドップラー)
+  for (let i = 0; i < 3; i++) {
+    x.beginPath();
+    x.ellipse(0, 0, R * (1.12 + i * 0.06), R * (0.98 + i * 0.06), 0, 0, Math.PI * 2);
+    x.lineWidth = R * 0.14;
+    const g = x.createLinearGradient(-R, 0, R, 0);
+    g.addColorStop(0.0, 'rgba(255,245,220,0.95)');
+    g.addColorStop(0.5, 'rgba(255,150,45,0.6)');
+    g.addColorStop(1.0, 'rgba(150,45,10,0.3)');
+    x.strokeStyle = g;
+    x.shadowColor = 'rgba(255,150,60,0.9)';
+    x.shadowBlur = R * 0.55;
+    x.stroke();
+  }
+  // 横に伸びる円盤(edge-on)。左右(回転で動く側)が明るく、上下は薄い
+  for (const sgn of [1, -1]) {
+    x.beginPath();
+    x.ellipse(0, sgn * R * 0.05, S * 0.46, R * 0.46, 0, 0, Math.PI * 2);
+    x.lineWidth = R * 0.09;
+    const g2 = x.createLinearGradient(-S * 0.46, 0, S * 0.46, 0);
+    g2.addColorStop(0.0, 'rgba(255,240,210,0.9)');
+    g2.addColorStop(0.45, 'rgba(255,130,35,0)');
+    g2.addColorStop(0.55, 'rgba(255,130,35,0)');
+    g2.addColorStop(1.0, 'rgba(150,45,10,0.35)');
+    x.strokeStyle = g2;
+    x.shadowColor = 'rgba(255,130,50,0.8)';
+    x.shadowBlur = R * 0.45;
+    x.stroke();
+  }
+  // 光子リング(影のふち。細く非常に明るい)
+  x.beginPath();
+  x.ellipse(0, 0, R * 1.0, R * 0.9, 0, 0, Math.PI * 2);
+  x.lineWidth = R * 0.025;
+  x.strokeStyle = 'rgba(255,235,200,1)';
+  x.shadowColor = 'rgba(255,220,170,1)';
+  x.shadowBlur = R * 0.3;
+  x.stroke();
+
+  return new THREE.CanvasTexture(cv);
 }
 
 // 遠方の背景星(動かない)
