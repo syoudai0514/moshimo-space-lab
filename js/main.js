@@ -203,7 +203,10 @@ function toast(ev) {
 
   showLatestToast(msg, explain);
 
-  notifBell.classList.remove('hidden');
+  if (notifBell.classList.contains('hidden')) {
+    notifBell.classList.remove('hidden'); // 初出現でヘッダーの段数が変わりうる
+    updateTopOffset();
+  }
   notifCount.textContent = notifLog.length;
   if (!notifPanel.classList.contains('hidden')) renderNotifList();
 }
@@ -247,8 +250,10 @@ function renderNotifList() {
 function clearNotifs() {
   notifLog.length = 0;
   toasts.innerHTML = '';
+  const wasShown = !notifBell.classList.contains('hidden');
   notifBell.classList.add('hidden');
   notifPanel.classList.add('hidden');
+  if (wasShown) updateTopOffset(); // ヘッダーの段数が戻りうる
 }
 
 notifBell.addEventListener('click', () => {

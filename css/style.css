@@ -360,20 +360,8 @@ ruby rt {
 
 .toast.fade { opacity: 0; }
 
-/* ---------- 通知ベル + 履歴 ---------- */
-#notif-bell {
-  position: fixed;
-  top: var(--top-offset, 60px);
-  right: 10px;
-  z-index: 21;
-  padding: 6px 11px;
-  font-size: 13px;
-  color: #ffe3b8;
-  background: rgba(8, 14, 30, 0.92);
-  border: 1px solid rgba(255, 190, 100, 0.5);
-  border-radius: 12px;
-  cursor: pointer;
-}
+/* ---------- 通知履歴(ベルはヘッダー内の .tab) ---------- */
+#notif-bell.tab { border-color: rgba(255, 190, 100, 0.55); color: #ffe3b8; }
 
 #notif-panel {
   position: fixed;

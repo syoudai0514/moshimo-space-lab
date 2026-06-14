@@ -19,7 +19,7 @@
   <meta name="twitter:image" content="https://syoudai0514.github.io/moshimo-space-lab/store/feature-graphic.png">
 
   <!-- ?v= はキャッシュ対策のバージョン番号。デプロイのたびに上げる -->
-  <link rel="stylesheet" href="css/style.css?v=10">
+  <link rel="stylesheet" href="css/style.css?v=11">
   <script type="importmap">
   {
     "imports": {
@@ -41,6 +41,7 @@
       <button id="observe-toggle" class="tab" data-i18n="tab.observe">🔭 観察</button>
       <button id="help-btn" class="tab">❓</button>
       <button id="bgm-toggle" class="tab" aria-label="BGM">🔊</button>
+      <button id="notif-bell" class="tab hidden" aria-label="notifications">🔔&nbsp;<span id="notif-count">0</span></button>
       <select id="lang-select" class="tab" aria-label="Language"></select>
       <button id="furi-toggle" class="tab hidden"></button>
     </div>
@@ -80,8 +81,7 @@
   <!-- イベント通知(最新の1件だけ表示) -->
   <div id="toasts"></div>
 
-  <!-- 通知ベル(タップで履歴を開く) -->
-  <button id="notif-bell" class="hidden" aria-label="notifications">🔔 <span id="notif-count">0</span></button>
+  <!-- 通知履歴(ヘッダーの🔔をタップで開く) -->
   <div id="notif-panel" class="hidden">
     <div class="panel-header">
       <span data-i18n="notif.h">🔔 通知の履歴</span>
@@ -241,6 +241,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=23"></script>
+  <script type="module" src="js/main.js?v=24"></script>
 </body>
 </html>
