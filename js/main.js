@@ -5,7 +5,7 @@ import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=11';
 import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=3';
 import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=3';
 import { SCENARIOS } from './scenarios.js?v=3';
-import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=9';
+import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=10';
 import { SCENARIO_I18N, OBSERVE_I18N } from './i18n-data.js?v=1';
 import { bgmEnabled, startBGM, toggleBGM, isPlaying as bgmIsPlaying, playSfx, unlockAudio } from './audio.js?v=6';
 
@@ -800,14 +800,16 @@ zoomBtn.addEventListener('click', () => {
   }
 });
 
-// ---------- ウェルカム画面 ----------
+// ---------- ウェルカム / オープニングメニュー ----------
 const welcomeOverlay = $('welcome-overlay');
 if (!localStorage.getItem('mslab-welcome-v1')) {
-  welcomeOverlay.classList.remove('hidden');
+  welcomeOverlay.classList.remove('hidden'); // 初回はデモの上にメニューを重ねて表示
 }
+function showMenu() { welcomeOverlay.classList.remove('hidden'); }
 function dismissWelcome(openLab) {
   localStorage.setItem('mslab-welcome-v1', '1');
   welcomeOverlay.classList.add('hidden');
+  stopAttract();              // デモを止めて、まっさらな太陽系へ
   if (openLab) {
     if (mode !== 'solar') setMode('solar');
     labPanel.classList.remove('hidden');
@@ -815,7 +817,11 @@ function dismissWelcome(openLab) {
 }
 $('welcome-start').addEventListener('click', () => dismissWelcome(true));
 $('welcome-free').addEventListener('click', () => dismissWelcome(false));
-$('help-btn').addEventListener('click', () => welcomeOverlay.classList.remove('hidden'));
+$('welcome-demo').addEventListener('click', () => {
+  welcomeOverlay.classList.add('hidden');
+  startAttract();            // デモをもう一度
+});
+$('help-btn').addEventListener('click', showMenu);
 
 // ---------- 再生コントロール ----------
 playBtn.addEventListener('click', () => {
@@ -1149,9 +1155,9 @@ let pointerState = null; // { id, key, downX, downY, dragging, plane }
 
 canvas.addEventListener('pointerdown', (e) => {
   if (mode !== 'solar' || pointerState) return;
-  // アトラクト再生中の最初のタップは「解除」だけに使う(天体を拾わない)。
-  // 実際の解除は document の pointerdown が行う。
-  if (attractMode) return;
+  // デモ再生中に画面をタップ → メニューを出す(デモは背後で流れ続ける)。
+  // ゲームのオープニングと同じ「デモ → タップでメニュー → 選ぶ」挙動。
+  if (attractMode) { showMenu(); return; }
   // メイン画面(3Dビュー)を触ったら天体パネルを閉じる(✕ボタン以外でも閉じられるように)。
   // この後タップで天体を選んだ場合は pointerup で開き直される。
   planetPanel.classList.add('hidden');
@@ -1254,9 +1260,12 @@ function showClimaxCaption(sc) {
 function hideCaption() { captionEl?.classList.add('hidden'); }
 
 function startAttract() {
+  if (mode !== 'solar') setMode('solar'); // デモは太陽系モードで
   attractMode = true;
   attractHint.classList.remove('hidden');
   panelToggle.classList.add('hidden'); // デモ中は「天体の設定」を隠してキャプションと被らせない
+  labPanel.classList.add('hidden');
+  observeMenu.classList.add('hidden');
   nextAttract();
 }
 
@@ -1296,8 +1305,7 @@ function stopAttract() {
   updateTimeDisplay();
 }
 
-// どこかを操作したら自動再生を終了(バブリング = 各要素の処理より前に確実に拾う)
-document.addEventListener('pointerdown', () => { if (attractMode) stopAttract(); });
+// デモはメニューからの選択で止める(タップ即終了ではなく、ワンタップでメニューを出す)。
 
 // ---------- メインループ ----------
 const clock = new THREE.Clock();
