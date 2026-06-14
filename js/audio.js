@@ -48,18 +48,17 @@ function ensureGraph() {
   reverbGain.gain.value = 0.7;
   reverb.connect(reverbGain).connect(master);
 
-  // 効果音バス: 直接出力 + 軽いディレイ(宇宙的な反響)。master を通さないので
-  // BGMが消音/フェード中でも効果音はしっかり鳴る。
+  // 効果音バス: 直接出力 + 専用の長いリバーブ(なめらかな尾)。master を通さないので
+  // BGMが消音/フェード中でも効果音はしっかり鳴る。離散ディレイ(ポンポン反復)は使わない。
   sfxBus = ctx.createGain();
   sfxBus.gain.value = 0.9;
   sfxBus.connect(ctx.destination);
-  const echo = ctx.createDelay(1.0);
-  echo.delayTime.value = 0.19;
-  const echoFb = ctx.createGain();
-  echoFb.gain.value = 0.28;
-  sfxBus.connect(echo);
-  echo.connect(echoFb).connect(echo);
-  echo.connect(ctx.destination);
+  const sfxVerb = ctx.createConvolver();
+  sfxVerb.buffer = makeReverbIR(5.0, 2.8); // 長く暗い余韻
+  const sfxVerbGain = ctx.createGain();
+  sfxVerbGain.gain.value = 0.55;
+  sfxBus.connect(sfxVerb);
+  sfxVerb.connect(sfxVerbGain).connect(ctx.destination);
 }
 
 function build() {
@@ -169,83 +168,137 @@ function getNoise() {
   return noiseBuf;
 }
 
-// 太陽に飲み込まれた: ピッチが急降下する「落下」+ 低い「ドゥン」という着弾。
+// 太陽(ブラックホール)に飲み込まれた:
+// 低音がゆっくり膨らみながら沈み込み、共鳴フィルターで「渦に吸い込まれる」質感を出し、
+// 最後に事象の地平面を越える重い一撃(ドゥゥン)で終わる。明るい高音・鋭い立ち上がりは無し。
 function sfxAbsorbed() {
   const now = ctx.currentTime;
+  const dur = 2.0;
 
-  // 落下(下降するサイン+のこぎり)
-  const o = ctx.createOscillator();
-  o.type = 'sawtooth';
-  o.frequency.setValueAtTime(440, now);
-  o.frequency.exponentialRampToValueAtTime(70, now + 0.5);
+  // 共鳴ローパス(だんだん閉じて吸い込まれる感じ)
   const lp = ctx.createBiquadFilter();
   lp.type = 'lowpass';
-  lp.frequency.setValueAtTime(2000, now);
-  lp.frequency.exponentialRampToValueAtTime(400, now + 0.5);
+  lp.frequency.setValueAtTime(520, now);
+  lp.frequency.exponentialRampToValueAtTime(70, now + dur);
+  lp.Q.value = 7;
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, now);
-  g.gain.exponentialRampToValueAtTime(0.45, now + 0.04);
-  g.gain.exponentialRampToValueAtTime(0.0001, now + 0.85);
-  o.connect(lp).connect(g).connect(sfxBus);
-  o.start(now);
-  o.stop(now + 0.9);
+  g.gain.linearRampToValueAtTime(0.5, now + 0.6);     // ゆっくり膨らむ(ポップ防止)
+  g.gain.setValueAtTime(0.5, now + dur - 0.7);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+  lp.connect(g).connect(sfxBus);
 
-  // 着弾(低い衝撃)
-  const o2 = ctx.createOscillator();
-  o2.type = 'sine';
-  o2.frequency.setValueAtTime(130, now + 0.42);
-  o2.frequency.exponentialRampToValueAtTime(42, now + 1.2);
-  const g2 = ctx.createGain();
-  g2.gain.setValueAtTime(0.0001, now + 0.42);
-  g2.gain.exponentialRampToValueAtTime(0.6, now + 0.5);
-  g2.gain.exponentialRampToValueAtTime(0.0001, now + 1.4);
-  o2.connect(g2).connect(sfxBus);
-  o2.start(now + 0.42);
-  o2.stop(now + 1.5);
+  // 沈み込む低音(わずかにデチューンして不気味なうなり)
+  for (const [f0, f1, type, gain] of [
+    [104, 26, 'sine', 1.0],
+    [105.5, 25, 'sine', 0.7],
+    [62, 19, 'triangle', 0.6],
+  ]) {
+    const o = ctx.createOscillator();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, now);
+    o.frequency.exponentialRampToValueAtTime(f1, now + dur);
+    const og = ctx.createGain();
+    og.gain.value = gain;
+    o.connect(og).connect(lp);
+    o.start(now);
+    o.stop(now + dur + 0.1);
+  }
+
+  // 渦に巻き込まれるノイズ(低く絞り込む)
+  const n = ctx.createBufferSource();
+  n.buffer = getNoise();
+  n.loop = true;
+  const nlp = ctx.createBiquadFilter();
+  nlp.type = 'lowpass';
+  nlp.Q.value = 4;
+  nlp.frequency.setValueAtTime(380, now);
+  nlp.frequency.exponentialRampToValueAtTime(55, now + dur);
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.0001, now);
+  ng.gain.linearRampToValueAtTime(0.16, now + 0.7);
+  ng.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+  n.connect(nlp).connect(ng).connect(sfxBus);
+  n.start(now);
+  n.stop(now + dur + 0.1);
+
+  // 事象の地平面を越える重い一撃(低周波なので「ポップ」ではなく「ドゥゥン」)
+  const imp = ctx.createOscillator();
+  imp.type = 'sine';
+  const t0 = now + dur * 0.8;
+  imp.frequency.setValueAtTime(58, t0);
+  imp.frequency.exponentialRampToValueAtTime(20, t0 + 0.9);
+  const ig = ctx.createGain();
+  ig.gain.setValueAtTime(0.0001, t0);
+  ig.gain.exponentialRampToValueAtTime(0.75, t0 + 0.1);
+  ig.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.0);
+  imp.connect(ig).connect(sfxBus);
+  imp.start(t0);
+  imp.stop(t0 + 1.1);
 }
 
-// 太陽系の彼方へ飛び去った: ピッチが上昇する「シューッ」+ 遠ざかってフェードする whoosh。
+// 太陽系の彼方へ飛び去った:
+// 明るい上昇音はやめ、低く重いうなりが片側へパンしながら遠ざかってフェードする。
+// ドップラーで少しピッチが下がり、長いリバーブの尾で「闇に消えていく」余韻を残す。
 function sfxEscaped() {
   const now = ctx.currentTime;
+  const dur = 1.9;
 
-  // 上昇音(飛んでいく)
-  const o = ctx.createOscillator();
-  o.type = 'triangle';
-  o.frequency.setValueAtTime(280, now);
-  o.frequency.exponentialRampToValueAtTime(1500, now + 0.55);
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(820, now);
+  lp.frequency.exponentialRampToValueAtTime(130, now + dur);
+  lp.Q.value = 2;
+
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, now);
-  g.gain.exponentialRampToValueAtTime(0.35, now + 0.07);
-  g.gain.exponentialRampToValueAtTime(0.0001, now + 1.1); // 遠ざかってフェード
-  // 左右どちらかへパンして「飛び去る」感じ
+  g.gain.linearRampToValueAtTime(0.4, now + 0.3);    // やわらかく立ち上げる(ポップ防止)
+  g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+
+  // 片側へパンして遠ざかる
   let tail = g;
   if (ctx.createStereoPanner) {
     const p = ctx.createStereoPanner();
     p.pan.setValueAtTime(0, now);
-    p.pan.linearRampToValueAtTime(Math.random() < 0.5 ? -0.9 : 0.9, now + 0.8);
+    p.pan.linearRampToValueAtTime(Math.random() < 0.5 ? -1 : 1, now + dur * 0.85);
     g.connect(p);
     tail = p;
   }
   tail.connect(sfxBus);
-  o.connect(g);
-  o.start(now);
-  o.stop(now + 1.2);
 
-  // 風切り(ノイズを帯域通過させて上へスイープ)
+  // 低く重いうなり(下降 = ドップラー)
+  for (const [f0, f1, type, gain] of [
+    [175, 52, 'sawtooth', 0.45],
+    [88, 30, 'sine', 0.8],
+  ]) {
+    const o = ctx.createOscillator();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, now);
+    o.frequency.exponentialRampToValueAtTime(f1, now + dur);
+    const og = ctx.createGain();
+    og.gain.value = gain;
+    o.connect(og).connect(lp);
+    o.start(now);
+    o.stop(now + dur + 0.1);
+  }
+  lp.connect(g);
+
+  // 低い風切り(下へスイープして遠ざかる)
   const n = ctx.createBufferSource();
   n.buffer = getNoise();
+  n.loop = true;
   const bp = ctx.createBiquadFilter();
   bp.type = 'bandpass';
-  bp.Q.value = 1.2;
-  bp.frequency.setValueAtTime(500, now);
-  bp.frequency.exponentialRampToValueAtTime(4000, now + 0.6);
+  bp.Q.value = 1.4;
+  bp.frequency.setValueAtTime(550, now);
+  bp.frequency.exponentialRampToValueAtTime(110, now + dur);
   const ng = ctx.createGain();
   ng.gain.setValueAtTime(0.0001, now);
-  ng.gain.exponentialRampToValueAtTime(0.25, now + 0.1);
-  ng.gain.exponentialRampToValueAtTime(0.0001, now + 0.9);
-  n.connect(bp).connect(ng).connect(sfxBus);
+  ng.gain.linearRampToValueAtTime(0.14, now + 0.35);
+  ng.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+  n.connect(bp).connect(ng).connect(tail);
   n.start(now);
-  n.stop(now + 1.0);
+  n.stop(now + dur + 0.1);
 }
 
 // イベント種別に応じた効果音を鳴らす。🔇(消音)のときは鳴らさない。

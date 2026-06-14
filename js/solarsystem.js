@@ -89,13 +89,15 @@ export class SolarSystem {
     this.scene.add(marker);
     this.scene.add(label);
 
-    // 軌跡(リングバッファ)
+    // 軌跡: 頂点ペアごとの「線分」の集まり(LineSegments)。
+    // 連続して記録した2点の間だけ線分を描き、いちど飛ばした(重複でスキップした)
+    // 区間はつなげない。これで軌道を横切る偽の直線(チョーク)が出ない。
     const trailAttr = new THREE.BufferAttribute(new Float32Array(TRAIL_MAX * 3), 3);
     trailAttr.setUsage(THREE.DynamicDrawUsage);
     const trailGeo = new THREE.BufferGeometry();
     trailGeo.setAttribute('position', trailAttr);
     trailGeo.setDrawRange(0, 0);
-    const trail = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({
+    const trail = new THREE.LineSegments(trailGeo, new THREE.LineBasicMaterial({
       color: data.color, transparent: true, opacity: 0.55,
     }));
     trail.frustumCulled = false;
@@ -128,8 +130,10 @@ export class SolarSystem {
       escaped: false,
       mesh, marker, label,
       trailAttr, trailGeo, trail,
-      trailCount: 0,
-      lastTrail: null,
+      trailCount: 0,    // 書き込み済み頂点数(線分は2頂点で1本)
+      lastTrail: null,  // 直近に「検討」した点(間引き判定用)
+      prevTrail: null,  // 直近に「記録」した点(次の線分の始点)
+      trailBreak: false, // 直前にスキップした → 次の点とは線をつながない
       trailCells: null, // 「通った極座標セル」の記憶(重複した軌跡を増やさない)
     };
   }
@@ -431,6 +435,8 @@ export class SolarSystem {
     const b = this.getBody(key);
     b.trailCount = 0;
     b.lastTrail = null;
+    b.prevTrail = null;
+    b.trailBreak = false;
     b.trailCells?.clear(); // 「通った場所」の記憶もリセット
     b.trailGeo.setDrawRange(0, 0);
   }
@@ -453,6 +459,8 @@ export class SolarSystem {
     // 常に同じセル → スキップ。だから安定した軌道は「1周ぶんのきれいな楕円」で
     // 固定され、軌道が変化して新しい形を描いた部分だけが追加される。
     // = 古い軌跡はずっと残り、重なった部分だけが増えない(全履歴の醍醐味は維持)。
+    // スキップした場合は trailBreak を立て、次に記録する点とは線をつながない
+    // (飛んだ区間を直線で結ぶと軌道を横切る偽の経路になるため)。
     if (sun.alive && b.key !== 'sun') {
       const dx = b.pos.x - sun.pos.x, dy = b.pos.y - sun.pos.y, dz = b.pos.z - sun.pos.z;
       const r = Math.sqrt(dx * dx + dy * dy + dz * dz);
@@ -463,6 +471,7 @@ export class SolarSystem {
         if (!b.trailCells) b.trailCells = new Set();
         if (b.trailCells.has(key)) {            // すでに通った場所 → 記録しない
           b.lastTrail = (b.lastTrail ?? new THREE.Vector3()).copy(p);
+          b.trailBreak = true;                  // 次の点とは線をつなげない
           return;
         }
         b.trailCells.add(key);
@@ -470,18 +479,25 @@ export class SolarSystem {
     }
 
     // 万一、別々の軌道で広い領域を覆い尽くしてバッファが満杯になったときだけ、
-    // 古い 1/4 を捨てて前へ詰める(通常の周回ではここには到達しない)。
-    if (b.trailCount === TRAIL_MAX) {
+    // 古い側を捨てて前へ詰める(通常の周回ではここには到達しない)。dropは偶数=線分単位。
+    if (b.trailCount >= TRAIL_MAX - 2) {
       const arr = b.trailAttr.array;
-      const drop = TRAIL_MAX >> 2;
-      arr.copyWithin(0, drop * 3, TRAIL_MAX * 3);
-      b.trailCount = TRAIL_MAX - drop;
+      let drop = TRAIL_MAX >> 2; drop -= drop % 2;
+      arr.copyWithin(0, drop * 3, b.trailCount * 3);
+      b.trailCount -= drop;
       b.trailCells?.clear();
     }
-    b.trailAttr.setXYZ(b.trailCount, p.x, p.y, p.z);
-    b.trailCount++;
-    b.trailAttr.needsUpdate = true;
-    b.trailGeo.setDrawRange(0, b.trailCount);
+
+    // 直前の記録点と今の点を結ぶ1本の線分(2頂点)を足す。
+    // 直前にスキップした/まだ始点が無いときは、線を引かず始点だけ更新する。
+    if (!b.trailBreak && b.prevTrail) {
+      b.trailAttr.setXYZ(b.trailCount++, b.prevTrail.x, b.prevTrail.y, b.prevTrail.z);
+      b.trailAttr.setXYZ(b.trailCount++, p.x, p.y, p.z);
+      b.trailAttr.needsUpdate = true;
+      b.trailGeo.setDrawRange(0, b.trailCount);
+    }
+    b.trailBreak = false;
+    b.prevTrail = (b.prevTrail ?? new THREE.Vector3()).copy(p);
     b.lastTrail = (b.lastTrail ?? new THREE.Vector3()).copy(p);
   }
 
