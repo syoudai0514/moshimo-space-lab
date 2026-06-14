@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createGalaxy, createBackgroundStars } from './galaxy.js?v=2';
-import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=17';
+import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=18';
 import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=3';
 import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=3';
 import { SCENARIOS } from './scenarios.js?v=4';
-import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=12';
+import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=13';
 import { SCENARIO_I18N, OBSERVE_I18N } from './i18n-data.js?v=2';
-import { bgmEnabled, startBGM, toggleBGM, isPlaying as bgmIsPlaying, playSfx, unlockAudio } from './audio.js?v=9';
+import { bgmEnabled, startBGM, toggleBGM, isPlaying as bgmIsPlaying, playSfx, unlockAudio } from './audio.js?v=10';
 
 const SI = (sc) => SCENARIO_I18N[getLang()]?.[sc.id]; // 現在言語の実験翻訳(無ければ undefined)
 // 実験の表示用タイトル・問い。日本語のときは子供向けにふりがな付き。
@@ -140,7 +140,14 @@ const bodySelect = $('body-select');
 const bodyInfo = $('body-info');
 const sizeSlider = $('size-slider');
 const massSlider = $('mass-slider');
+const massExtend = $('mass-extend');
 const distSlider = $('dist-slider');
+// 重さスライダーは既定 ×1000 まで。ボタンで ×10000 まで解放(または重い天体を選んだら自動で)。
+massExtend.addEventListener('click', () => { massSlider.max = '4'; massExtend.classList.add('hidden'); });
+function ensureMassRange(scale) {
+  if (scale > 1000) { massSlider.max = '4'; massExtend.classList.add('hidden'); }
+  else massExtend.classList.toggle('hidden', massSlider.max === '4');
+}
 const distField = $('dist-field');
 const speedField = $('speed-field');
 const orbspeedSlider = $('orbspeed-slider');
@@ -948,6 +955,7 @@ function refreshInfo() {
 function refreshPanel() {
   rebuildBodySelect(); // 追加・リセット後も天体リストを常に同期
   const b = solar.getBody(bodySelect.value);
+  ensureMassRange(b.massScale); // 重い天体を選んだらスライダー上限を自動解放
   sizeSlider.value = Math.log10(b.sizeScale);
   massSlider.value = Math.log10(b.massScale);
   sizeValue.textContent = `×${b.sizeScale.toFixed(2)}`;

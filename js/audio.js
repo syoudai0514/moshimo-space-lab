@@ -230,6 +230,27 @@ function getNoise() {
   return noiseBuf;
 }
 
+// intro 動画と同じテイストの柔らかいベル(基音+2倍音、速いトレモロ、リバーブ)。
+function bell(freq, when, amp, decay, pan) {
+  const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
+  const o2 = ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 2;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, when);
+  g.gain.exponentialRampToValueAtTime(amp, when + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, when + decay);
+  const g2 = ctx.createGain(); g2.gain.value = 0.4;
+  const trem = ctx.createGain(); trem.gain.value = 0.85;
+  const lfo = ctx.createOscillator(); lfo.frequency.value = 9;
+  const lfoG = ctx.createGain(); lfoG.gain.value = 0.22;
+  lfo.connect(lfoG).connect(trem.gain); lfo.start(when); lfo.stop(when + decay);
+  o.connect(g); o2.connect(g2).connect(g); g.connect(trem);
+  let out = trem;
+  if (pan && ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = pan; trem.connect(p); out = p; }
+  out.connect(sfxBus);
+  o.start(when); o.stop(when + decay + 0.05);
+  o2.start(when); o2.stop(when + decay + 0.05);
+}
+
 // 太陽(ブラックホール)に飲み込まれた:
 // 低音がゆっくり膨らみながら沈み込み、共鳴フィルターで「渦に吸い込まれる」質感を出し、
 // 最後に事象の地平面を越える重い一撃(ドゥゥン)で終わる。明るい高音・鋭い立ち上がりは無し。
@@ -299,68 +320,15 @@ function sfxAbsorbed() {
   imp.stop(t0 + 1.1);
 }
 
-// 第二宇宙速度を超えて太陽系の外へ:
-// ダークな「キラーン」。中音域のベル倍音が、軽く上がってから長く下がり(キラ→ン)、
-// 高速トレモロでシマー(きらめき)、全体をローパスで暗く、片側へパンして遠ざかり、
-// 長いリバーブの尾で闇へ消える。明るすぎ・鋭すぎ(ポップ)を避ける。
+// 第二宇宙速度を超えて太陽系の外へ: intro と同じ明るいペンタトニックのベルを駆け上がる「キラーン↑」。
 function sfxEscaped() {
   const now = ctx.currentTime;
-  const dur = 2.6;
-
-  // 全体を暗くするローパス
-  const lp = ctx.createBiquadFilter();
-  lp.type = 'lowpass';
-  lp.frequency.value = 2400;
-
-  // きらめき(トレモロ): 速いLFOで音量を細かく揺らす
-  const trem = ctx.createGain();
-  trem.gain.value = 0.8;
-  const lfo = ctx.createOscillator();
-  lfo.frequency.value = 9;
-  const lfoG = ctx.createGain();
-  lfoG.gain.value = 0.3;
-  lfo.connect(lfoG).connect(trem.gain);
-  lfo.start(now);
-  lfo.stop(now + dur);
-
-  // 信号経路: 倍音 → trem → lp →(pan)→ sfxBus
-  trem.connect(lp);
-  if (ctx.createStereoPanner) {
-    const side = Math.random() < 0.5 ? -1 : 1;
-    const pan = ctx.createStereoPanner();
-    pan.pan.setValueAtTime(0.2 * side, now);
-    pan.pan.linearRampToValueAtTime(0.92 * side, now + dur); // 遠ざかる
-    lp.connect(pan).connect(sfxBus);
-  } else {
-    lp.connect(sfxBus);
-  }
-
-  // 余韻つきのベル倍音(中音域中心 = ダーク)。最初に軽く上がって長く下がる(キラ→ン)。
-  const base = 330; // E4 くらい。高すぎないのでダーク
-  const partials = [
-    [1.0, 1.0, 2.5],
-    [1.5, 0.5, 2.1],   // 完全5度
-    [2.0, 0.3, 1.7],
-    [2.84, 0.16, 1.3], // わずかに非整数 → 金属的なシマー
-  ];
-  for (const [ratio, amp, decay] of partials) {
-    const o = ctx.createOscillator();
-    o.type = 'sine';
-    const f = base * ratio;
-    o.frequency.setValueAtTime(f * 0.96, now);
-    o.frequency.exponentialRampToValueAtTime(f * 1.08, now + 0.16); // キラ↑
-    o.frequency.exponentialRampToValueAtTime(f * 0.9, now + decay); // ーン↓
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, now);
-    g.gain.exponentialRampToValueAtTime(amp * 0.45, now + 0.04);    // やわらかい立ち上がり
-    g.gain.exponentialRampToValueAtTime(0.0001, now + decay);
-    o.connect(g).connect(trem);
-    o.start(now);
-    o.stop(now + decay + 0.1);
-  }
+  const notes = [440, 523.25, 659.25, 880]; // A4 C5 E5 A5(Aマイナーペンタ 上行)
+  notes.forEach((f, i) => bell(f, now + i * 0.07, 0.22, 1.6 - i * 0.15, i % 2 ? 0.5 : -0.5));
+  bell(1046.5, now + 0.32, 0.12, 1.2, 0.3); // C6 で締めのきらめき
 }
 
-// 合体: 深く重い「ドゥンッ」という衝突感。
+// 合体: 低い衝突「ドゥンッ」+ 柔らかいベルの余韻(intro テイスト)。
 function sfxMerge() {
   const now = ctx.currentTime;
   const o = ctx.createOscillator();
@@ -369,10 +337,11 @@ function sfxMerge() {
   o.frequency.exponentialRampToValueAtTime(45, now + 0.5);
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, now);
-  g.gain.exponentialRampToValueAtTime(0.5, now + 0.03);
+  g.gain.exponentialRampToValueAtTime(0.4, now + 0.03);
   g.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
   o.connect(g).connect(sfxBus);
   o.start(now); o.stop(now + 0.8);
+  bell(330, now + 0.02, 0.13, 1.0, 0); // E4 のベル
 }
 
 // 超新星爆発: 巨大なノイズの炸裂 + 地を這う重低音 + 長い轟き。
@@ -402,6 +371,8 @@ function sfxSupernova() {
   g.gain.exponentialRampToValueAtTime(0.0001, now + 2.0);
   o.connect(g).connect(sfxBus);
   o.start(now); o.stop(now + 2.1);
+  // intro テイストのベルの華やぎ(駆け上がり)
+  [440, 523.25, 659.25, 880, 1046.5].forEach((f, i) => bell(f, now + 0.06 + i * 0.06, 0.16, 1.5, i % 2 ? 0.4 : -0.4));
 }
 
 // イベント種別に応じた効果音を鳴らす。🔇(消音)のときは鳴らさない。連発は間引く(超新星は除く)。

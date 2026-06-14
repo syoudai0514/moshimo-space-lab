@@ -373,18 +373,15 @@ export class SolarSystem {
     this.scene.add(flash);
     this.explosions.push({ kind: 'sprite', obj: flash, start: now, dur: 0.8, s0: baseR * 4, s1: baseR * 80, o0: 1, p: 2 });
 
-    // 2) 色とりどりのモヤ(星雲のように混ざり合うガス) — 大きく柔らかい光雲を重ねる
-    const HAZE = [0x49d0ff, 0xff6a3c, 0xff4d9e, 0xffd166, 0x8affc0, 0xb98cff];
-    for (let i = 0; i < HAZE.length; i++) {
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: softCircle(), color: HAZE[i], transparent: true, opacity: 0.4,
-        depthWrite: false, blending: THREE.AdditiveBlending,
+    // 2) 超新星残骸の星雲(カニ星雲風のテクスチャ)。膨張しながらゆっくり消える。2枚を別回転で重ねて混色。
+    for (let i = 0; i < 2; i++) {
+      const neb = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: makeNebulaTexture(), transparent: true, opacity: 0.9,
+        depthWrite: false, blending: THREE.AdditiveBlending, rotation: Math.random() * Math.PI * 2,
       }));
-      // 少しずらして配置 → いびつな星雲に
-      const u = Math.random() * 2 - 1, ph = Math.random() * Math.PI * 2, sn = Math.sqrt(1 - u * u);
-      s.position.set(origin.x + sn * Math.cos(ph) * baseR * 3, origin.y + u * baseR * 3, origin.z + sn * Math.sin(ph) * baseR * 3);
-      this.scene.add(s);
-      this.explosions.push({ kind: 'sprite', obj: s, start: now + i * 0.03, dur: 3.2, s0: baseR * 10, s1: baseR * (70 + Math.random() * 60), o0: 0.4, p: 1.3 });
+      neb.position.copy(origin);
+      this.scene.add(neb);
+      this.explosions.push({ kind: 'sprite', obj: neb, start: now + i * 0.05, dur: 3.4, s0: baseR * 8, s1: baseR * (90 + i * 30), o0: 0.85, p: 1.25 });
     }
 
     // 3) 飛び散るガスのフィラメント(柔らかい点を多数 → 重なってモヤになる)
@@ -816,74 +813,98 @@ function softCircle() {
 }
 
 // ブラックホールの見た目(インターステラー/ガルガンチュア型)。カメラを向くビルボード。
-// なめらかな発光(ブラー)で、円盤・上下に回り込むハロー・光子リング・影を重ねる。
+// 1ピクセルずつ計算: オレンジの降着円盤、重力レンズで上下に回り込むハロー、左右へ伸びる
+// 円盤、ドップラー(左=接近=明/右=後退=暗赤)、白い光子リング、黒い影。全BH共通なので1回だけ生成。
+let _bhTex = null;
 function makeBlackHoleTexture() {
-  const S = 1024;
+  if (_bhTex) return _bhTex;
+  const S = 512;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const cx = S / 2, cy = S / 2, rs = S * 0.15;
+  const Rring = 1.22, ringW = 0.16, thick = 0.16;
+  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+  const ctx2 = cv.getContext('2d');
+  const img = ctx2.createImageData(S, S);
+  const d = img.data;
+  for (let i = 0; i < S; i++) {
+    for (let j = 0; j < S; j++) {
+      const nx = (j - cx) / rs, ny = (i - cy) / rs;
+      const r = Math.hypot(nx, ny), rm = Math.max(r, 0.3);
+      const up = clamp(-ny / rm, 0, 1), down = clamp(ny / rm, 0, 1);
+      const gauss = (z) => Math.exp(-(z * z));
+      const ring = gauss((r - Rring) / ringW) * (0.4 + 0.95 * up + 0.3 * down);
+      const wing = gauss(ny / thick) * gauss((r - 1.6) / 1.4);
+      const dopp = clamp(1 + 1.15 * (-nx) / Math.max(r, 0.25), 0.12, 2.2);
+      let disk = (ring * 0.95 + wing * 1.15) * dopp * 0.95;
+      // 色: 内縁オレンジ→赤(白熱は光子リングだけ)
+      const t = clamp((r - 1) / 1.6, 0, 1);
+      const s1 = clamp(t / 0.45, 0, 1), s2 = clamp((t - 0.45) / 0.55, 0, 1);
+      let cr = 1.0 + (0.5 - 1.0) * s2;
+      let cg = 0.62 + (0.40 - 0.62) * s1; cg += (0.08 - cg) * s2;
+      let cb = 0.28 + (0.10 - 0.28) * s1; cb += (0.03 - cb) * s2;
+      const warm = clamp(dopp / 1.3, 0.45, 1.15);
+      cg *= warm; cb *= warm;
+      let R = cr * disk, G = cg * disk, B = cb * disk;
+      const photon = gauss((r - 1) / 0.045) * 1.25;
+      R += photon; G += photon * 0.92; B += photon * 0.78;
+      // 影(手前=下の円盤だけ前を横切る)
+      const front = ny > 0 && Math.abs(ny) < thick * 1.45;
+      const fade = r < 0.98 ? clamp((r - 0.72) / 0.26, 0, 1) : 1;
+      R *= fade; G *= fade; B *= fade;
+      if (r < 0.5 && !front) { R = 0; G = 0; B = 0; }
+      // トーンマップ
+      R = R / (1 + 0.45 * R); G = G / (1 + 0.45 * G); B = B / (1 + 0.45 * B);
+      const k = (i * S + j) * 4;
+      d[k] = clamp(R, 0, 1) * 255; d[k + 1] = clamp(G, 0, 1) * 255; d[k + 2] = clamp(B, 0, 1) * 255; d[k + 3] = 255;
+    }
+  }
+  ctx2.putImageData(img, 0, 0);
+  _bhTex = new THREE.CanvasTexture(cv);
+  _bhTex.anisotropy = 4;
+  return _bhTex;
+}
+
+// 超新星残骸の星雲テクスチャ(カニ星雲風)。色とりどりの柔らかい塊を多数重ねたガス雲。
+let _nebTex = null;
+function makeNebulaTexture() {
+  if (_nebTex) return _nebTex;
+  const S = 512;
   const cv = document.createElement('canvas');
   cv.width = cv.height = S;
   const x = cv.getContext('2d');
-  const Rs = S * 0.15;          // 影(シャドウ)半径
-  x.translate(S / 2, S / 2);
   x.globalCompositeOperation = 'lighter';
-
-  // ドップラー(左=接近=白く明るい / 右=後退=暗い赤)を込めた水平グラデを作る
-  const diskGrad = (rx, inner, mid, outer) => {
-    const g = x.createLinearGradient(-rx, 0, rx, 0);
-    g.addColorStop(0.0, inner);
-    g.addColorStop(0.5, mid);
-    g.addColorStop(1.0, outer);
-    return g;
+  const cols = ['73,208,255', '255,106,60', '255,77,158', '255,209,102', '138,255,192', '255,255,255'];
+  const blob = (px, py, rr, col, a) => {
+    const g = x.createRadialGradient(px, py, 0, px, py, rr);
+    g.addColorStop(0, `rgba(${col},${a})`);
+    g.addColorStop(0.5, `rgba(${col},${a * 0.4})`);
+    g.addColorStop(1, `rgba(${col},0)`);
+    x.fillStyle = g;
+    x.beginPath(); x.arc(px, py, rr, 0, Math.PI * 2); x.fill();
   };
-  const ell = (rx, ry, lw, style, blur, blurCol) => {
-    x.save();
-    if (blur) { x.shadowBlur = blur; x.shadowColor = blurCol; }
-    x.lineWidth = lw;
-    x.strokeStyle = style;
-    x.beginPath();
-    x.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
-    x.stroke();
-    x.restore();
-  };
-
-  // 1) 円盤の外側ハロー(広く淡いオレンジの広がり)
-  ell(S * 0.46, Rs * 0.62, Rs * 0.55,
-    diskGrad(S * 0.46, 'rgba(255,225,195,0.5)', 'rgba(255,105,40,0.2)', 'rgba(150,30,15,0.12)'),
-    Rs * 1.2, 'rgba(255,100,40,0.85)');
-
-  // 2) 円盤の明るいコア(細め・白熱〜赤)
-  ell(S * 0.45, Rs * 0.5, Rs * 0.17,
-    diskGrad(S * 0.45, 'rgba(255,255,250,0.95)', 'rgba(255,150,60,0.55)', 'rgba(190,45,20,0.3)'),
-    Rs * 0.4, 'rgba(255,150,70,0.9)');
-
-  // 3) レンズで持ち上がったハロー(影の上下に回り込む環。ほぼ円)
-  ell(Rs * 1.22, Rs * 1.16, Rs * 0.2,
-    diskGrad(Rs * 1.22, 'rgba(255,250,235,1)', 'rgba(255,150,60,0.8)', 'rgba(210,60,25,0.5)'),
-    Rs * 0.45, 'rgba(255,130,55,1)');
-
-  // 4) 光子リング(極細・白・くっきり)
-  ell(Rs * 1.02, Rs * 0.99, Rs * 0.03, 'rgba(255,248,232,1)', Rs * 0.2, 'rgba(255,210,170,1)');
-
-  // 5) 影をくっきり抜く(向こう側の円盤・ハローが影に被らないように)
-  x.globalCompositeOperation = 'destination-out';
-  x.shadowBlur = 0;
-  x.beginPath(); x.ellipse(0, 0, Rs * 0.97, Rs * 0.94, 0, 0, Math.PI * 2); x.fill();
-
-  // 6) 手前側の円盤を影の前に描き直す(下半分だけ = 影の手前を横切る)
-  x.save();
-  x.globalCompositeOperation = 'lighter';
-  x.beginPath(); x.rect(-S, 0, 2 * S, S); x.clip();
-  ell(S * 0.45, Rs * 0.5, Rs * 0.17,
-    diskGrad(S * 0.45, 'rgba(255,255,250,0.95)', 'rgba(255,150,60,0.55)', 'rgba(190,45,20,0.3)'),
-    Rs * 0.4, 'rgba(255,150,70,0.9)');
-  x.restore();
-
-  const tex = new THREE.CanvasTexture(cv);
-  tex.anisotropy = 4;
-  return tex;
+  // フィラメント状に塊を散らす
+  for (let i = 0; i < 170; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const rad = Math.pow(Math.random(), 0.55) * S * 0.44;
+    const px = S / 2 + Math.cos(ang) * rad;
+    const py = S / 2 + Math.sin(ang) * rad * 0.92;
+    blob(px, py, 12 + Math.random() * 64, cols[(Math.random() * cols.length) | 0], 0.16 + Math.random() * 0.22);
+  }
+  // 明るい筋(小さな点)
+  for (let i = 0; i < 240; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const rad = Math.pow(Math.random(), 0.5) * S * 0.46;
+    const px = S / 2 + Math.cos(ang) * rad;
+    const py = S / 2 + Math.sin(ang) * rad * 0.92;
+    blob(px, py, 2 + Math.random() * 6, cols[(Math.random() * cols.length) | 0], 0.5);
+  }
+  _nebTex = new THREE.CanvasTexture(cv);
+  return _nebTex;
 }
 
 // 遠方の背景星(動かない)
-export function createBackgroundStars(count = 1800, distance = 900) {
+export function createBackgroundStars(count = 650, distance = 900) {
   const pos = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
     const phi = Math.random() * Math.PI * 2;
@@ -898,9 +919,9 @@ export function createBackgroundStars(count = 1800, distance = 900) {
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   return new THREE.Points(geo, new THREE.PointsMaterial({
     color: 0x8898bb,
-    size: 1.4,
+    size: 1.3,
     sizeAttenuation: false,
     transparent: true,
-    opacity: 0.8,
+    opacity: 0.7,
   }));
 }
