@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createGalaxy, createBackgroundStars } from './galaxy.js?v=2';
-import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=13';
+import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=14';
 import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=3';
 import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=3';
-import { SCENARIOS } from './scenarios.js?v=3';
-import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=11';
-import { SCENARIO_I18N, OBSERVE_I18N } from './i18n-data.js?v=1';
+import { SCENARIOS } from './scenarios.js?v=4';
+import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=12';
+import { SCENARIO_I18N, OBSERVE_I18N } from './i18n-data.js?v=2';
 import { bgmEnabled, startBGM, toggleBGM, isPlaying as bgmIsPlaying, playSfx, unlockAudio } from './audio.js?v=7';
 
 const SI = (sc) => SCENARIO_I18N[getLang()]?.[sc.id]; // 現在言語の実験翻訳(無ければ undefined)
@@ -440,7 +440,7 @@ function changeSummary() {
     return fmt(t(`edit.${type}`), p);
   });
 }
-function fmtScale(x) { return x >= 10 ? `×${Math.round(x)}` : `×${x.toFixed(2)}`; }
+function fmtScale(x) { return x >= 10 ? `×${Math.round(x).toLocaleString()}` : `×${x.toFixed(2)}`; }
 
 // シェア本文: 結果を文章化 + 変更レシピ + ハッシュタグ + URL(引用したくなる一言を狙う)
 function buildShareText() {
@@ -951,7 +951,7 @@ function refreshPanel() {
   sizeSlider.value = Math.log10(b.sizeScale);
   massSlider.value = Math.log10(b.massScale);
   sizeValue.textContent = `×${b.sizeScale.toFixed(2)}`;
-  massValue.textContent = `×${b.massScale.toFixed(2)}`;
+  massValue.textContent = fmtScale(b.massScale);
   exaggValue.textContent = `×${Math.round(solar.exaggeration)}`;
   exaggSlider.value = Math.log10(solar.exaggeration);
   const isSun = b.key === 'sun';
@@ -1002,7 +1002,7 @@ massSlider.addEventListener('input', () => {
   const key = bodySelect.value;
   const scale = Math.pow(10, parseFloat(massSlider.value));
   solar.setMassScale(key, scale);
-  massValue.textContent = `×${scale.toFixed(2)}`;
+  massValue.textContent = fmtScale(scale);
   if (Math.abs(scale - 1) < 0.01) dropEdit(`mass:${key}`);
   else recordEdit(`mass:${key}`, 'mass', { key, x: fmtScale(scale) });
   refreshInfo();
@@ -1235,7 +1235,7 @@ const CINE_TEXT = {
     cjp: ['うわぁ！！', 'どっか行った！？'], ce: 'Whoa!! Where did they go!?' },
   'all-fall': { hj: 'もしも惑星がぜんぶ止まったら？', he: 'What if every planet stopped?',
     cjp: ['つぎつぎ', 'のみこまれる！？'], ce: 'One by one, into the Sun!' },
-  'jupiter-monster': { hj: 'もしも木星が怪物みたいに重くなったら？', he: 'What if Jupiter became a monster?',
+  'jupiter-monster': { hj: 'もしも木星が太陽より重くなったら？', he: 'What if Jupiter outweighed the Sun?',
     cjp: ['主役、', '交代！？'], ce: 'Jupiter takes over the system!' },
   'jupiter-star': { hj: 'もしも木星が恒星になったら？', he: 'What if Jupiter became a star?',
     cjp: ['なに？！', 'この動き？！'], ce: 'What IS this motion?!' },

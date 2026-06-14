@@ -740,8 +740,8 @@ export const SC_FURIGANA = {
     q: '8つの<ruby>惑星<rt>わくせい</rt></ruby>すべての<ruby>公転<rt>こうてん</rt></ruby>を<ruby>同時<rt>どうじ</rt></ruby>に<ruby>止<rt>と</rt></ruby>めたら?',
   },
   'jupiter-monster': {
-    title: 'もしも<ruby>木星<rt>もくせい</rt></ruby>が3<ruby>万倍<rt>まんばい</rt></ruby><ruby>重<rt>おも</rt></ruby>くなったら',
-    q: '<ruby>木星<rt>もくせい</rt></ruby>が<ruby>太陽<rt>たいよう</rt></ruby>より<ruby>重<rt>おも</rt></ruby>くなったら、<ruby>主役<rt>しゅやく</rt></ruby>はどっち?',
+    title: 'もしも<ruby>木星<rt>もくせい</rt></ruby>が<ruby>太陽<rt>たいよう</rt></ruby>より<ruby>重<rt>おも</rt></ruby>くなったら',
+    q: '<ruby>木星<rt>もくせい</rt></ruby>が<ruby>太陽<rt>たいよう</rt></ruby>を<ruby>超<rt>こ</rt></ruby>える<ruby>重<rt>おも</rt></ruby>さになったら、<ruby>主役<rt>しゅやく</rt></ruby>はどっち?',
   },
   'sun-mercury-swap': {
     title: 'もしも<ruby>太陽<rt>たいよう</rt></ruby>と<ruby>水星<rt>すいせい</rt></ruby>を<ruby>入<rt>い</rt></ruby>れ<ruby>替<rt>か</rt></ruby>えたら',

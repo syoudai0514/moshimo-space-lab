@@ -119,17 +119,18 @@ export const SCENARIO_I18N = {
         + 'a "domino chain of falling."',
     },
     'jupiter-monster': {
-      title: 'What if Jupiter were 30,000× heavier?',
-      share: '🕳️ Crank Jupiter to 30,000× — the gravity king flings planets out, dragging the Sun along.',
-      q: 'If Jupiter became heavier than the Sun, who is the main character?',
+      title: 'What if Jupiter were heavier than the Sun?',
+      share: '👑 Make Jupiter heavier than the Sun — the gravity king flings planets out, dragging the Sun along.',
+      q: 'If Jupiter grew heavier than the Sun, who is the main character?',
       watch: 'Jupiter becomes the new king of gravity. Even the Sun gets swung around, and planets are flung out one by one.',
       explain:
-        'The heavier something is, the stronger its gravity — let us take that to the extreme. Make Jupiter about 30,000 times heavier '
-        + '(about 30 times the Sun\'s mass) and <b>the heaviest body</b> in the Solar System becomes Jupiter, '
+        'The heavier something is, the stronger its gravity. Make Jupiter about 2,000 times heavier '
+        + '(<b>about twice the Sun\'s mass</b>) and <b>the heaviest body</b> in the Solar System becomes Jupiter, '
         + 'with the Sun getting swung around it instead.<br><br>'
         + 'The planets are torn between two mighty gravities — the Sun and Jupiter — '
-        + 'and a <b>swing-by</b> accelerates them and shoots them off into space one after another. '
-        + 'It is a Solar System demolition show that makes plain at a glance just how dangerous it is to be near a heavy star.',
+        + 'and a <b>swing-by</b> accelerates them and shoots them off into space one after another.<br><br>'
+        + '※ Make it even heavier (more than ~3 solar masses) and gravity wins: it collapses into a <b>black hole</b>. '
+        + 'Try it yourself by raising the mass in “Body settings”.',
     },
     'sun-mercury-swap': {
       title: 'What if the Sun and Mercury swapped?',
@@ -263,17 +264,16 @@ export const SCENARIO_I18N = {
         + '「坠落的多米诺」。',
     },
     'jupiter-monster': {
-      title: '假如木星重了三万倍',
-      share: '🕳️把木星变重三万倍，引力之王连太阳一起甩动，把行星接连射向宇宙。',
+      title: '假如木星变得比太阳还重',
+      share: '👑把木星变得比太阳还重，引力之王连太阳一起甩动，把行星接连射向宇宙。',
       q: '如果木星变得比太阳还重，主角会是谁？',
       watch: '木星会成为新的引力之王。连太阳都被它甩来甩去，行星接连被弹飞。',
       explain:
-        '越重引力越强——我们把这一点推向极端。把木星变重约三万倍'
-        + '（约为太阳的30倍质量），太阳系里<b>最重的天体</b>就变成了木星，'
-        + '反倒是太阳被甩着绕木星转。<br><br>'
-        + '行星们被太阳和木星这两股强大的引力撕扯，'
-        + '在<b>引力弹弓</b>的加速下接连被射向宇宙。'
-        + '这是一场让你一眼就看清靠近重星有多危险的太阳系解体秀。',
+        '越重引力越强。把木星变重约2000倍（<b>约为太阳的2倍质量</b>），'
+        + '太阳系里<b>最重的天体</b>就变成了木星，反倒是太阳被甩着绕木星转。<br><br>'
+        + '行星们被太阳和木星这两股强大的引力撕扯，在<b>引力弹弓</b>的加速下接连被射向宇宙。<br><br>'
+        + '※ 如果变得更重（超过约3个太阳质量），引力会获胜并坍缩成<b>黑洞</b>。'
+        + '在“天体设置”里调高质量自己试试吧。',
     },
     'sun-mercury-swap': {
       title: '假如太阳和水星互换',
@@ -408,17 +408,16 @@ export const SCENARIO_I18N = {
         + '「낙하의 도미노」를 볼 수 있어요.',
     },
     'jupiter-monster': {
-      title: '만약 목성이 3만 배 무거워진다면',
-      share: '🕳️목성을 3만 배로. 중력의 왕이 태양까지 휘두르며 행성을 우주로 날려버린다.',
-      q: '목성이 태양보다 무거워지면 주인공은 어느 쪽?',
+      title: '만약 목성이 태양보다 무거워진다면',
+      share: '👑목성이 태양보다 무거운 항성급으로. 중력의 왕이 태양까지 휘두르며 행성을 우주로 날려버린다.',
+      q: '목성이 태양을 넘는 무게가 되면 주인공은 어느 쪽?',
       watch: '목성이 새로운 중력의 왕으로. 태양마저 휘둘리고, 행성이 차례차례 튕겨 나가요.',
       explain:
-        '무거울수록 중력이 강하다——이것을 극단적으로 해 봐요. 목성을 약 3만 배'
-        + '(태양의 약 30배 질량)로 만들면 태양계에서 <b>가장 무거운 천체</b>는 목성이 되고, '
-        + '오히려 태양이 목성 주위를 휘둘려 돌게 됩니다.<br><br>'
-        + '행성들은 태양과 목성이라는 두 강대한 중력에 찢기며, '
-        + '<b>스윙바이</b>로 가속돼 차례차례 우주로 사출됩니다. '
-        + '무거운 별 근처가 얼마나 위험한지 한눈에 알 수 있는, 태양계 해체 쇼예요.',
+        '무거울수록 중력이 강해요. 목성을 약 2000배(<b>태양의 약 2배 질량</b>)로 만들면 '
+        + '태양계에서 <b>가장 무거운 천체</b>는 목성이 되고, 오히려 태양이 목성 주위를 휘둘려 돕니다.<br><br>'
+        + '행성들은 태양과 목성이라는 두 강대한 중력에 찢기며, <b>스윙바이</b>로 가속돼 차례차례 우주로 사출됩니다.<br><br>'
+        + '※ 더 무겁게(약 3 태양질량 이상) 하면 중력에 못 버티고 <b>블랙홀</b>이 됩니다. '
+        + '“천체 설정”에서 질량을 올려 직접 시험해 보세요.',
     },
     'sun-mercury-swap': {
       title: '만약 태양과 수성이 뒤바뀐다면',

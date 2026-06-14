@@ -347,29 +347,36 @@ export class SolarSystem {
     const origin = b.pos.clone().multiplyScalar(POS_SCALE);
     const baseR = Math.max(this.displayRadius(b), 1.5);
 
+    // 1) 白い大閃光(一瞬)
     const flash = new THREE.Sprite(new THREE.SpriteMaterial({
       map: makeGlowTexture(), color: 0xffffff, transparent: true, opacity: 1,
       depthWrite: false, blending: THREE.AdditiveBlending,
     }));
     flash.position.copy(origin);
     this.scene.add(flash);
-    this.explosions.push({ kind: 'sprite', obj: flash, start: now, dur: 0.7, s0: baseR * 4, s1: baseR * 75, o0: 1, p: 2 });
+    this.explosions.push({ kind: 'sprite', obj: flash, start: now, dur: 0.8, s0: baseR * 4, s1: baseR * 80, o0: 1, p: 2 });
 
-    const after = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: makeGlowTexture(), color: 0xff8a3c, transparent: true, opacity: 0.9,
-      depthWrite: false, blending: THREE.AdditiveBlending,
-    }));
-    after.position.copy(origin);
-    this.scene.add(after);
-    this.explosions.push({ kind: 'sprite', obj: after, start: now, dur: 2.2, s0: baseR * 6, s1: baseR * 130, o0: 0.9, p: 1.5 });
+    // 2) 色とりどりのモヤ(星雲のように混ざり合うガス) — 大きく柔らかい光雲を重ねる
+    const HAZE = [0x49d0ff, 0xff6a3c, 0xff4d9e, 0xffd166, 0x8affc0, 0xb98cff];
+    for (let i = 0; i < HAZE.length; i++) {
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: softCircle(), color: HAZE[i], transparent: true, opacity: 0.4,
+        depthWrite: false, blending: THREE.AdditiveBlending,
+      }));
+      // 少しずらして配置 → いびつな星雲に
+      const u = Math.random() * 2 - 1, ph = Math.random() * Math.PI * 2, sn = Math.sqrt(1 - u * u);
+      s.position.set(origin.x + sn * Math.cos(ph) * baseR * 3, origin.y + u * baseR * 3, origin.z + sn * Math.sin(ph) * baseR * 3);
+      this.scene.add(s);
+      this.explosions.push({ kind: 'sprite', obj: s, start: now + i * 0.03, dur: 3.2, s0: baseR * 10, s1: baseR * (70 + Math.random() * 60), o0: 0.4, p: 1.3 });
+    }
 
-    // 色とりどりのデブリ(超新星残骸=カニ星雲のように飛び散る)
-    const N = 180;
+    // 3) 飛び散るガスのフィラメント(柔らかい点を多数 → 重なってモヤになる)
+    const N = 260;
     const pos = new Float32Array(N * 3), col = new Float32Array(N * 3), vel = new Float32Array(N * 3);
-    const PAL = [[1, .55, .2], [1, .85, .45], [.35, .9, 1], [1, .4, .75], [.6, 1, .85], [1, 1, 1]];
+    const PAL = [[1, .55, .25], [1, .8, .4], [.3, .85, 1], [1, .35, .7], [.55, 1, .8], [.75, .6, 1], [1, 1, 1]];
     for (let i = 0; i < N; i++) {
       const u = Math.random() * 2 - 1, ph = Math.random() * Math.PI * 2, s = Math.sqrt(1 - u * u);
-      const sp = 8 + Math.random() * 36; // 表示単位/秒
+      const sp = (4 + Math.random() * 24) * (0.5 + Math.random()); // バラけた速度で星雲の濃淡に
       pos[i * 3] = origin.x; pos[i * 3 + 1] = origin.y; pos[i * 3 + 2] = origin.z;
       vel[i * 3] = s * Math.cos(ph) * sp; vel[i * 3 + 1] = u * sp; vel[i * 3 + 2] = s * Math.sin(ph) * sp;
       const c = PAL[(Math.random() * PAL.length) | 0];
@@ -379,12 +386,12 @@ export class SolarSystem {
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     const pts = new THREE.Points(geo, new THREE.PointsMaterial({
-      size: 5, sizeAttenuation: false, vertexColors: true, transparent: true,
-      opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending,
+      map: softCircle(), size: 22, sizeAttenuation: false, vertexColors: true,
+      transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending,
     }));
     pts.frustumCulled = false;
     this.scene.add(pts);
-    this.explosions.push({ kind: 'particles', obj: pts, start: now, dur: 2.8, ox: origin.x, oy: origin.y, oz: origin.z, vel });
+    this.explosions.push({ kind: 'particles', obj: pts, start: now, dur: 3.2, o0: 0.85, ox: origin.x, oy: origin.y, oz: origin.z, vel });
   }
 
   _revertBlackHole(b) {
@@ -674,7 +681,7 @@ export class SolarSystem {
             arr[j + 2] = ex.oz + ex.vel[j + 2] * age;
           }
           ex.obj.geometry.attributes.position.needsUpdate = true;
-          ex.obj.material.opacity = (1 - k);
+          ex.obj.material.opacity = (ex.o0 ?? 1) * (1 - k);
         } else {
           ex.obj.scale.setScalar(ex.s0 + (ex.s1 - ex.s0) * k);
           ex.obj.material.opacity = ex.o0 * Math.pow(1 - k, ex.p || 1);
@@ -773,6 +780,23 @@ function makeGlowTexture() {
   return new THREE.CanvasTexture(c);
 }
 
+// 柔らかい円(放射状グラデ)。超新星のモヤ・デブリ用に重ねるとガスのように見える。
+let _softTex = null;
+function softCircle() {
+  if (_softTex) return _softTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const x = c.getContext('2d');
+  const g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.45, 'rgba(255,255,255,0.45)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g;
+  x.fillRect(0, 0, 64, 64);
+  _softTex = new THREE.CanvasTexture(c);
+  return _softTex;
+}
+
 // ブラックホールの見た目(インターステラー型)。降着円盤が重力レンズで影の上下に
 // 回り込む様子を、カメラを向くビルボード用テクスチャとして描く。透明な中心=影。
 function makeBlackHoleTexture() {
@@ -783,18 +807,18 @@ function makeBlackHoleTexture() {
   const R = S * 0.2;
   x.translate(S / 2, S / 2);
 
-  // 降着円盤の光輪(影の上下に回り込む。左=近づく側が明るい=ドップラー)
+  // 降着円盤の光輪(影の上下に回り込む)。内側=白熱→オレンジ→外縁=赤。
   for (let i = 0; i < 3; i++) {
     x.beginPath();
     x.ellipse(0, 0, R * (1.12 + i * 0.06), R * (0.98 + i * 0.06), 0, 0, Math.PI * 2);
     x.lineWidth = R * 0.14;
     const g = x.createLinearGradient(-R, 0, R, 0);
-    g.addColorStop(0.0, 'rgba(255,245,220,0.95)');
-    g.addColorStop(0.5, 'rgba(255,150,45,0.6)');
-    g.addColorStop(1.0, 'rgba(150,45,10,0.3)');
+    g.addColorStop(0.0, 'rgba(255,235,200,0.95)'); // 内縁は白熱
+    g.addColorStop(0.45, 'rgba(255,95,35,0.65)');  // オレンジ
+    g.addColorStop(1.0, 'rgba(190,25,18,0.45)');   // 外縁は赤
     x.strokeStyle = g;
-    x.shadowColor = 'rgba(255,150,60,0.9)';
-    x.shadowBlur = R * 0.55;
+    x.shadowColor = 'rgba(255,70,35,0.95)';        // 赤いにじみ
+    x.shadowBlur = R * 0.6;
     x.stroke();
   }
   // 横に伸びる円盤(edge-on)。左右(回転で動く側)が明るく、上下は薄い
@@ -803,22 +827,22 @@ function makeBlackHoleTexture() {
     x.ellipse(0, sgn * R * 0.05, S * 0.46, R * 0.46, 0, 0, Math.PI * 2);
     x.lineWidth = R * 0.09;
     const g2 = x.createLinearGradient(-S * 0.46, 0, S * 0.46, 0);
-    g2.addColorStop(0.0, 'rgba(255,240,210,0.9)');
-    g2.addColorStop(0.45, 'rgba(255,130,35,0)');
-    g2.addColorStop(0.55, 'rgba(255,130,35,0)');
-    g2.addColorStop(1.0, 'rgba(150,45,10,0.35)');
+    g2.addColorStop(0.0, 'rgba(255,225,190,0.9)');
+    g2.addColorStop(0.45, 'rgba(220,60,25,0)');
+    g2.addColorStop(0.55, 'rgba(220,60,25,0)');
+    g2.addColorStop(1.0, 'rgba(170,25,15,0.4)');   // 外縁は赤
     x.strokeStyle = g2;
-    x.shadowColor = 'rgba(255,130,50,0.8)';
-    x.shadowBlur = R * 0.45;
+    x.shadowColor = 'rgba(255,70,35,0.85)';
+    x.shadowBlur = R * 0.5;
     x.stroke();
   }
-  // 光子リング(影のふち。細く非常に明るい)
+  // 光子リング(影のふち。細く明るい。赤みを帯びる)
   x.beginPath();
   x.ellipse(0, 0, R * 1.0, R * 0.9, 0, 0, Math.PI * 2);
-  x.lineWidth = R * 0.025;
-  x.strokeStyle = 'rgba(255,235,200,1)';
-  x.shadowColor = 'rgba(255,220,170,1)';
-  x.shadowBlur = R * 0.3;
+  x.lineWidth = R * 0.03;
+  x.strokeStyle = 'rgba(255,210,170,1)';
+  x.shadowColor = 'rgba(255,120,70,1)';
+  x.shadowBlur = R * 0.35;
   x.stroke();
 
   return new THREE.CanvasTexture(cv);
