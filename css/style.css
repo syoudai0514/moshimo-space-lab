@@ -360,6 +360,18 @@ ruby rt {
 
 .toast.fade { opacity: 0; }
 
+/* ---------- アトラクト発動時の閃光 ---------- */
+#flash {
+  position: fixed;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 35;
+  transition: opacity 0.5s ease-out;
+}
+#flash.on { opacity: 0.8; transition: opacity 0s; }
+
 /* ---------- 通知履歴(ベルはヘッダー内の .tab) ---------- */
 #notif-bell.tab { border-color: rgba(255, 190, 100, 0.55); color: #ffe3b8; }
 

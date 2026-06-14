@@ -1198,56 +1198,47 @@ canvas.addEventListener('pointercancel', (e) => endPointer(e, true));
 
 // ---------- アトラクトモード ----------
 // 初回ロード時、何も操作しないあいだは派手な「もしも」を自動再生し続ける。
-// 流入した人が最初の数秒で「崩壊」を目にして、自分でも触りたくなる導線。
-// 画面に触れる/何か操作した時点で解除され、まっさらな太陽系から遊び始められる。
-const ATTRACT_IDS = ['jupiter-monster', 'sun-mercury-swap', 'jupiter-star', 'mars-heavy', 'all-fall'];
-const ATTRACT_PERIOD = 13; // 秒ごとに次のシナリオへ切り替え
-const OPENING_CALM = 1.0;        // オープニング: まず普通に公転を見せる秒数(溜め)
+// 毎サイクル「見慣れた太陽系をすこし回す(溜め) → いきなり"もしも"が発動(ドン!)」という
+// 動画と同じ演出を、ランダムなシナリオで生のシミュレーションとして見せる。
+// 画面に触れた時点で解除され、まっさらな太陽系から遊び始められる。
+const CINEMATIC_IDS = ['sun-vanish', 'all-fall', 'jupiter-monster', 'jupiter-star', 'sun-mercury-swap'];
+const ATTRACT_PERIOD = 12; // 秒ごとに次の「もしも」へ
+const OPENING_CALM = 1.1;        // 溜め: 普通に公転を見せる秒数
 const OPENING_SPEED = '0.25';    // 溜めのあいだはゆったり
-const OPENING_BANG_SPEED = '1';  // 崩壊の瞬間にテンポアップ(惑星が飛び去る)
+const OPENING_BANG_SPEED = '1';  // 発動の瞬間にテンポアップ
 let attractMode = false;
 let attractTimer = 0;
 let attractIdx = -1;
-let attractFirst = true;       // 初回サイクルだけ専用の「掴み」演出
 let attractBangPending = false;
+let attractBangSc = null;        // 発動するシナリオ
 
 const attractHint = $('attract-hint');
+const flashEl = $('flash');
+function triggerFlash() {
+  if (!flashEl) return;
+  flashEl.classList.add('on');                 // 一瞬で白く(transition 0s)
+  requestAnimationFrame(() => flashEl.classList.remove('on')); // そこから0.5sでフェード
+}
 
 function startAttract() {
   attractMode = true;
-  attractFirst = true;
   attractHint.classList.remove('hidden');
   nextAttract();
 }
 
 function nextAttract() {
   attractTimer = 0;
-  if (attractFirst) {
-    // ── オープニング(最初の掴み) ──
-    // 見慣れた太陽系を約1秒ふつうに回し、そのあといきなり太陽を消して
-    // 全惑星を接線方向へ一斉に飛ばす。「平常 → 崩壊」のコントラストが最強のフック。
-    attractFirst = false;
-    attractIdx = -1;
-    solar.reset();
-    clearLog();
-    speedSelect.value = OPENING_SPEED;
-    attractBangPending = true;
-    solarPlaying = true;
-    return;
-  }
-  // ── 2巡目以降: ランダムに派手なシナリオ ──
-  attractBangPending = false;
+  // 直前と違う「もしも」をランダムに選ぶ
   let i;
-  do { i = Math.floor(Math.random() * ATTRACT_IDS.length); }
-  while (i === attractIdx && ATTRACT_IDS.length > 1);
+  do { i = Math.floor(Math.random() * CINEMATIC_IDS.length); }
+  while (i === attractIdx && CINEMATIC_IDS.length > 1);
   attractIdx = i;
-  const sc = SCENARIOS.find((s) => s.id === ATTRACT_IDS[i]);
+  attractBangSc = SCENARIOS.find((s) => s.id === CINEMATIC_IDS[i]);
+  // まずは普通の太陽系をゆっくり回す(溜め)。発動は溜めが終わってから。
   solar.reset();
   clearLog();
-  if (sc) {
-    sc.setup(solar);
-    speedSelect.value = sc.speed;
-  }
+  speedSelect.value = OPENING_SPEED;
+  attractBangPending = true;
   solarPlaying = true;
 }
 
@@ -1255,6 +1246,7 @@ function stopAttract() {
   if (!attractMode) return;
   attractMode = false;
   attractBangPending = false;
+  attractBangSc = null;
   attractHint.classList.add('hidden');
   endScenario();
   solar.reset();
@@ -1281,11 +1273,12 @@ function animate() {
   if (mode === 'solar') {
     if (attractMode) {
       attractTimer += dt;
-      // オープニングの「溜め」が終わったら、位置・速度はそのまま太陽だけ消して崩壊させる
+      // 溜めが終わったら、選ばれた「もしも」を“その場”で発動(位置・速度はそのまま)+ 閃光
       if (attractBangPending && attractTimer >= OPENING_CALM) {
         attractBangPending = false;
-        SCENARIOS.find((s) => s.id === 'sun-vanish')?.setup(solar);
+        attractBangSc?.setup(solar);
         speedSelect.value = OPENING_BANG_SPEED;
+        triggerFlash();
       }
       if (attractTimer >= ATTRACT_PERIOD) nextAttract();
     }
