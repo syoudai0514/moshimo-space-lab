@@ -360,6 +360,57 @@ ruby rt {
 
 .toast.fade { opacity: 0; }
 
+/* ---------- 通知ベル + 履歴 ---------- */
+#notif-bell {
+  position: fixed;
+  top: var(--top-offset, 60px);
+  right: 10px;
+  z-index: 21;
+  padding: 6px 11px;
+  font-size: 13px;
+  color: #ffe3b8;
+  background: rgba(8, 14, 30, 0.92);
+  border: 1px solid rgba(255, 190, 100, 0.5);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+#notif-panel {
+  position: fixed;
+  top: calc(var(--top-offset, 60px) + 42px);
+  right: 10px;
+  width: min(360px, calc(100% - 20px));
+  max-height: 55vh;
+  overflow-y: auto;
+  z-index: 30;
+  padding: 12px 14px;
+  background: rgba(10, 16, 34, 0.96);
+  border: 1px solid rgba(130, 170, 255, 0.3);
+  border-radius: 14px;
+  backdrop-filter: blur(6px);
+}
+
+#notif-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.notif-row {
+  font-size: 13px;
+  line-height: 1.4;
+  color: #dce8ff;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+
+.notif-row.has-explain {
+  cursor: pointer;
+  border: 1px solid rgba(255, 190, 100, 0.35);
+}
+
 /* ---------- 時間コントロール ---------- */
 #time-bar {
   position: fixed;

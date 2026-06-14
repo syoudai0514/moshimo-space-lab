@@ -19,7 +19,7 @@
   <meta name="twitter:image" content="https://syoudai0514.github.io/moshimo-space-lab/store/feature-graphic.png">
 
   <!-- ?v= はキャッシュ対策のバージョン番号。デプロイのたびに上げる -->
-  <link rel="stylesheet" href="css/style.css?v=9">
+  <link rel="stylesheet" href="css/style.css?v=10">
   <script type="importmap">
   {
     "imports": {
@@ -77,8 +77,18 @@
     </button>
   </div>
 
-  <!-- イベント通知 -->
+  <!-- イベント通知(最新の1件だけ表示) -->
   <div id="toasts"></div>
+
+  <!-- 通知ベル(タップで履歴を開く) -->
+  <button id="notif-bell" class="hidden" aria-label="notifications">🔔 <span id="notif-count">0</span></button>
+  <div id="notif-panel" class="hidden">
+    <div class="panel-header">
+      <span data-i18n="notif.h">🔔 通知の履歴</span>
+      <button id="notif-close">✕</button>
+    </div>
+    <div id="notif-list"></div>
+  </div>
 
   <!-- 録画インジケーター -->
   <div id="rec-indicator" class="hidden">⏺ REC</div>
@@ -231,6 +241,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=22"></script>
+  <script type="module" src="js/main.js?v=23"></script>
 </body>
 </html>

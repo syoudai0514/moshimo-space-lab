@@ -5,7 +5,7 @@ import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=11';
 import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=3';
 import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=3';
 import { SCENARIOS } from './scenarios.js?v=3';
-import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=8';
+import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=9';
 import { SCENARIO_I18N, OBSERVE_I18N } from './i18n-data.js?v=1';
 import { bgmEnabled, startBGM, toggleBGM, isPlaying as bgmIsPlaying, playSfx } from './audio.js?v=4';
 
@@ -179,26 +179,84 @@ function relabelBodies() {
 rebuildBodySelect();
 bodySelect.value = 'earth';
 
-// ---------- トースト通知 ----------
+// ---------- トースト通知 + 履歴 ----------
+// 画面には「最新の1件だけ」を出して動きを隠さない。過去の通知は 🔔 ベルに溜め、
+// タップで履歴を開いて後から読める。
 const toasts = $('toasts');
-// ev は文字列、または { type, msg }。type に解説があるトーストはタップで開ける
+const notifBell = $('notif-bell');
+const notifCount = $('notif-count');
+const notifPanel = $('notif-panel');
+const notifListEl = $('notif-list');
+const notifLog = []; // { msg, explain }  新しいものが末尾
+const NOTIF_MAX = 40;
+let toastTimers = [];
+
+// ev は文字列、または { type, msg }。type に解説がある通知はタップで解説を開ける
 function toast(ev) {
   const isObj = typeof ev === 'object';
   const msg = isObj ? ev.msg : ev;
   const type = isObj ? ev.type : null;
   const explain = type ? { title: t(`event.${type}.title`), body: t(`event.${type}.body`) } : null;
+
+  notifLog.push({ msg, explain });
+  if (notifLog.length > NOTIF_MAX) notifLog.shift();
+
+  showLatestToast(msg, explain);
+
+  notifBell.classList.remove('hidden');
+  notifCount.textContent = notifLog.length;
+  if (!notifPanel.classList.contains('hidden')) renderNotifList();
+}
+
+// 最新の1件だけを上部に表示(前のトーストは消す)
+function showLatestToast(msg, explain) {
+  for (const tmr of toastTimers) clearTimeout(tmr);
+  toastTimers = [];
+  toasts.innerHTML = '';
   const div = document.createElement('div');
   div.className = 'toast';
   div.textContent = explain ? `${msg} 💡` : msg;
-  const life = explain ? 7000 : 3600; // 解説付きは読む時間を長めに
   if (explain) {
     div.classList.add('has-explain');
     div.addEventListener('click', () => openModal(explain.title, explain.body + disclaimerHtml()));
   }
   toasts.appendChild(div);
-  setTimeout(() => div.classList.add('fade'), life);
-  setTimeout(() => div.remove(), life + 800);
+  const life = explain ? 7000 : 3600;
+  toastTimers.push(setTimeout(() => div.classList.add('fade'), life));
+  toastTimers.push(setTimeout(() => div.remove(), life + 800));
 }
+
+function renderNotifList() {
+  if (notifLog.length === 0) {
+    notifListEl.innerHTML = `<p class="hint">${t('notif.empty')}</p>`;
+    return;
+  }
+  notifListEl.innerHTML = '';
+  for (let i = notifLog.length - 1; i >= 0; i--) { // 新しい順
+    const n = notifLog[i];
+    const row = document.createElement('div');
+    row.className = 'notif-row' + (n.explain ? ' has-explain' : '');
+    row.textContent = n.explain ? `${n.msg} 💡` : n.msg;
+    if (n.explain) {
+      row.addEventListener('click', () => openModal(n.explain.title, n.explain.body + disclaimerHtml()));
+    }
+    notifListEl.appendChild(row);
+  }
+}
+
+function clearNotifs() {
+  notifLog.length = 0;
+  toasts.innerHTML = '';
+  notifBell.classList.add('hidden');
+  notifPanel.classList.add('hidden');
+}
+
+notifBell.addEventListener('click', () => {
+  const willOpen = notifPanel.classList.contains('hidden');
+  notifPanel.classList.toggle('hidden');
+  if (willOpen) renderNotifList();
+});
+$('notif-close').addEventListener('click', () => notifPanel.classList.add('hidden'));
 
 // ---------- 実験の記録 ----------
 const eventLogEl = $('event-log');
@@ -222,6 +280,7 @@ function renderLog() {
 function clearLog() {
   eventLog.length = 0;
   renderLog();
+  clearNotifs(); // 通知の履歴(🔔)も一緒にリセット
 }
 
 solar.onEvent = (ev) => {
