@@ -1413,16 +1413,15 @@ const bgmBtn = $('bgm-toggle');
 const updateBgmBtn = () => { bgmBtn.textContent = bgmEnabled() ? '🔊' : '🔇'; };
 updateBgmBtn();
 bgmBtn.addEventListener('click', () => { toggleBGM(); updateBgmBtn(); });
-let audioKicked = false;
+// iOS Safari は pointerdown では音声を解放せず、touchend/click でないと解放されない。
+// そこで「1回で打ち切らず」毎ジェスチャーで解放を試みる(unlockAudio/startBGM は冪等)。
+// pointerdown が空振りしても、続く touchend/click で確実に鳴り出す。
 function kickAudio(e) {
-  if (audioKicked) return;
-  if (e && e.target && e.target.closest && e.target.closest('#bgm-toggle')) return; // 🔊ボタンは自前で処理
-  audioKicked = true;
-  unlockAudio();                 // このジェスチャー内で音声を解禁(以後 効果音も鳴る)
-  if (bgmEnabled()) startBGM();
+  if (e && e.target && e.target.closest && e.target.closest('#bgm-toggle')) return; // 🔊ボタンは自前で
+  unlockAudio();                 // resume を試す(解放済みなら実質ノーオペ)
+  if (bgmEnabled()) startBGM();  // startBGM は再生中なら何もしない(冪等)
 }
-// iOS/Android で確実に拾えるよう複数のイベントで一度だけ解禁
-for (const evt of ['pointerdown', 'touchend', 'mousedown', 'keydown']) {
+for (const evt of ['pointerdown', 'touchend', 'mousedown', 'click', 'keydown']) {
   document.addEventListener(evt, kickAudio, { passive: true });
 }
 
