@@ -166,6 +166,12 @@
       <span><span data-i18n="panel.dist">太陽からの距離</span>: <b id="dist-value">1.00 AU</b></span>
       <input type="range" id="dist-slider" min="-1.3" max="1.95" step="0.01" value="0">
     </label>
+
+    <label class="field" id="speed-field">
+      <span><span data-i18n="panel.speed">公転の速さ</span>: <b id="orbspeed-value">×1.00</b></span>
+      <input type="range" id="orbspeed-slider" min="0" max="1.6" step="0.01" value="1">
+    </label>
+    <p class="hint" data-i18n="panel.speedHint">※ 0で公転を止めると太陽へ落下、1で円軌道、約1.41で脱出速度を超えて飛び去ります</p>
     <p class="hint" data-i18n="panel.editHint">※ 重さ・距離を変えると、その瞬間から重力で軌道が変わります。惑星は直接ドラッグでも動かせます</p>
 
     <button id="circularize-btn" class="action" data-i18n="panel.circularize">⭕ この位置で円軌道に乗せる</button>
@@ -225,6 +231,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=21"></script>
+  <script type="module" src="js/main.js?v=22"></script>
 </body>
 </html>

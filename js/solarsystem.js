@@ -401,6 +401,38 @@ export class SolarSystem {
     this.clearTrail(key);
   }
 
+  // 現在位置での円軌道速度(太陽相対, AU/年)に対する、いまの公転速度の倍率。
+  // 1=円軌道, 0=停止, √2≈1.41=脱出速度。スライダーの初期位置の計算に使う。
+  orbitalSpeedFactor(key) {
+    const b = this.getBody(key);
+    const sun = this.bodies[0];
+    if (!b.alive || b.key === 'sun') return 1;
+    const r = b.pos.distanceTo(sun.pos);
+    if (r < 1e-9) return 1;
+    const vCirc = Math.sqrt(G * (this.effMass(sun) + this.effMass(b)) / r);
+    if (vCirc < 1e-12) return 1;
+    return b.vel.distanceTo(sun.vel) / vCirc;
+  }
+
+  // 公転(横向き)の速さを、円軌道速度の factor 倍に設定する。
+  // 0=公転停止(太陽へ落下), 1=円軌道, √2≈1.41=脱出速度。向きは今の公転面の接線方向。
+  setOrbitalSpeed(key, factor) {
+    const b = this.getBody(key);
+    const sun = this.bodies[0];
+    if (!b.alive || b.key === 'sun') return;
+    const rel = b.pos.clone().sub(sun.pos);
+    const r = rel.length();
+    if (r < 1e-9) return;
+    let axis = rel.clone().cross(b.vel.clone().sub(sun.vel));
+    if (axis.lengthSq() < 1e-12) axis.set(0, 1, 0); // ほぼ直線運動なら水平面を使う
+    axis.normalize();
+    const tangent = axis.cross(rel).normalize();
+    const v = factor * Math.sqrt(G * (this.effMass(sun) + this.effMass(b)) / r);
+    b.vel.copy(sun.vel).addScaledVector(tangent, v);
+    b.escaped = false; // 直後に _checkEscape が再判定する
+    this.clearTrail(key);
+  }
+
   // 2つの天体(太陽も可)の位置と速度をまるごと交換する。
   // 惑星どうしなら公転速度は質量にほぼよらないので円軌道のまま。
   // 太陽と入れ替えると重力の中心が移動し、太陽系全体が組み変わっていく

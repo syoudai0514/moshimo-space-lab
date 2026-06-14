@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createGalaxy, createBackgroundStars } from './galaxy.js?v=2';
-import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=10';
+import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=11';
 import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=3';
 import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=3';
 import { SCENARIOS } from './scenarios.js?v=3';
-import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=7';
+import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=8';
 import { SCENARIO_I18N, OBSERVE_I18N } from './i18n-data.js?v=1';
 import { bgmEnabled, startBGM, toggleBGM, isPlaying as bgmIsPlaying, playSfx } from './audio.js?v=4';
 
@@ -142,6 +142,9 @@ const sizeSlider = $('size-slider');
 const massSlider = $('mass-slider');
 const distSlider = $('dist-slider');
 const distField = $('dist-field');
+const speedField = $('speed-field');
+const orbspeedSlider = $('orbspeed-slider');
+const orbspeedValue = $('orbspeed-value');
 const sizeValue = $('size-value');
 const massValue = $('mass-value');
 const distValue = $('dist-value');
@@ -882,6 +885,7 @@ function refreshPanel() {
   const isSun = b.key === 'sun';
   const planetEditable = !isSun && b.alive;
   distField.classList.toggle('hidden', !planetEditable);
+  speedField.classList.toggle('hidden', !planetEditable);
   circularizeBtn.classList.toggle('hidden', !planetEditable);
   swapField.classList.toggle('hidden', !b.alive);
   deleteBtn.classList.toggle('hidden', !b.alive);
@@ -889,6 +893,9 @@ function refreshPanel() {
     const r = b.pos.distanceTo(solar.bodies[0].pos);
     distSlider.value = Math.log10(Math.max(r, 0.05));
     distValue.textContent = `${r.toFixed(2)} AU`;
+    const f = THREE.MathUtils.clamp(solar.orbitalSpeedFactor(b.key), 0, parseFloat(orbspeedSlider.max));
+    orbspeedSlider.value = f;
+    setOrbSpeedLabel(f);
   }
   if (b.alive) {
     // 入れ替え相手のセレクトを作り直す(自分と消滅した惑星は除く。太陽も選べる)
@@ -935,6 +942,25 @@ distSlider.addEventListener('input', () => {
   solar.setDistanceAU(key, au);
   distValue.textContent = `${au.toFixed(2)} AU`;
   recordEdit(`dist:${key}`, 'dist', { key, au: au.toFixed(2) });
+  refreshInfo();
+});
+
+// 公転(横向き)の速さ: 円軌道速度の倍率。0=落下 / 1=円軌道 / √2=脱出
+function orbRegime(f) {
+  if (f <= 0.05) return tPlain('orbspeed.fall');
+  if (f >= Math.SQRT2) return tPlain('orbspeed.escape');
+  if (Math.abs(f - 1) <= 0.05) return tPlain('orbspeed.circle');
+  return tPlain('orbspeed.ellipse');
+}
+function setOrbSpeedLabel(f) {
+  orbspeedValue.textContent = `×${f.toFixed(2)} (${orbRegime(f)})`;
+}
+orbspeedSlider.addEventListener('input', () => {
+  const key = bodySelect.value;
+  const f = parseFloat(orbspeedSlider.value);
+  solar.setOrbitalSpeed(key, f);
+  setOrbSpeedLabel(f);
+  recordEdit(`speed:${key}`, 'speed', { key, x: f.toFixed(2) });
   refreshInfo();
 });
 
@@ -1284,6 +1310,7 @@ function applyAllI18n() {
   }
   updateTimeDisplay();   // 観察モードの時刻・年代表示も言語反映
   updateFuriToggle();    // ふりがなトグルの表示/ラベル
+  if (!speedField.classList.contains('hidden')) setOrbSpeedLabel(parseFloat(orbspeedSlider.value));
   updateTopOffset(); // ヘッダー高さ(ふりがな/言語で変わる)にパネル位置を追従
 }
 
