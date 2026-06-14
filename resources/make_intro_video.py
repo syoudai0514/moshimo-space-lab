@@ -82,10 +82,11 @@ def center_text(draw, parts, font, y, alpha=255):
         draw.text((x, y), t, font=font, fill=c + (alpha,))
         x += w
 
-f_hook_jp = JP(46); f_hook_en = LAT(30)
-f_wow = LAT(80); f_wow_jp = JP(40)
+# 日本語を主役(大)・英語は控えめな字幕(小)。どちらも日本語→英語の順。
+f_hook_jp = JP(46); f_hook_en = LAT(26)
+f_climax_jp = JP(52); f_climax_en = LAT(28)
 f_brand = JP(28); f_url = LAT(20)
-BLUE = (214, 228, 255); AMBER = (255, 210, 77)
+BLUE = (214, 228, 255); AMBER = (255, 210, 77); MUTE = (160, 180, 214)
 
 ff = imageio_ffmpeg.get_ffmpeg_exe()
 silent = '/tmp/intro_silent.mp4'
@@ -139,11 +140,11 @@ for fi in range(TOTAL):
     d = ImageDraw.Draw(ov)
     if fi < BANG:
         center_text(d, [('もしも太陽が消えたら？', (255, 255, 255))], f_hook_jp, H * 0.065)
-        center_text(d, [('What if the Sun vanished?', (190, 210, 245))], f_hook_en, H * 0.115)
+        center_text(d, [('What if the Sun vanished?', MUTE)], f_hook_en, H * 0.118)
     else:
         a = min(255, int(255 * (fi - BANG) / 9))
-        center_text(d, [('Wow… ', BLUE), ('BYE!?', AMBER)], f_wow, H * 0.06, alpha=a)
-        center_text(d, [('うわっ…', BLUE), ('バイバイ！？', AMBER)], f_wow_jp, H * 0.135, alpha=a)
+        center_text(d, [('うわぁ！！', BLUE), ('どっか行った！？', AMBER)], f_climax_jp, H * 0.06, alpha=a)
+        center_text(d, [('Whoa!! Where did they go!?', MUTE)], f_climax_en, H * 0.125, alpha=a)
     center_text(d, [('もしも宇宙ラボ ／ What-If Space Lab', (180, 200, 240))], f_brand, H * 0.90)
     center_text(d, [('syoudai0514.github.io/moshimo-space-lab', (130, 150, 200))], f_url, H * 0.935)
     img = Image.alpha_composite(img, ov).convert('RGB')
