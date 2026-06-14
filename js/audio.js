@@ -320,12 +320,12 @@ function sfxAbsorbed() {
   imp.stop(t0 + 1.1);
 }
 
-// 第二宇宙速度を超えて太陽系の外へ: intro と同じ明るいペンタトニックのベルを駆け上がる「キラーン↑」。
+// 第二宇宙速度を超えて太陽系の外へ: intro の余韻のような、やわらかく長く響くベルのきらめき。
+// 駆け上がるジングルではなく、1〜2音がリバーブに溶けて消える静かな残響。
 function sfxEscaped() {
   const now = ctx.currentTime;
-  const notes = [440, 523.25, 659.25, 880]; // A4 C5 E5 A5(Aマイナーペンタ 上行)
-  notes.forEach((f, i) => bell(f, now + i * 0.07, 0.22, 1.6 - i * 0.15, i % 2 ? 0.5 : -0.5));
-  bell(1046.5, now + 0.32, 0.12, 1.2, 0.3); // C6 で締めのきらめき
+  bell(880, now, 0.11, 2.6, -0.35);          // A5 をやわらかく
+  bell(659.25, now + 0.22, 0.07, 2.2, 0.35); // E5 をそっと添える
 }
 
 // 合体: 低い衝突「ドゥンッ」+ 柔らかいベルの余韻(intro テイスト)。
@@ -356,7 +356,7 @@ function sfxSupernova() {
   bp.frequency.exponentialRampToValueAtTime(200, now + 2.2);
   const ng = ctx.createGain();
   ng.gain.setValueAtTime(0.0001, now);
-  ng.gain.exponentialRampToValueAtTime(0.22, now + 0.12); // 音量控えめ・立ち上がりも柔らかく
+  ng.gain.exponentialRampToValueAtTime(0.12, now + 0.18); // さらに控えめ・立ち上がりも柔らかく
   ng.gain.exponentialRampToValueAtTime(0.0001, now + 2.4);
   n.connect(bp).connect(ng).connect(sfxBus);
   n.start(now); n.stop(now + 2.5);
@@ -367,12 +367,12 @@ function sfxSupernova() {
   o.frequency.exponentialRampToValueAtTime(24, now + 1.6);
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, now);
-  g.gain.exponentialRampToValueAtTime(0.34, now + 0.06); // ドスンを控えめに
+  g.gain.exponentialRampToValueAtTime(0.2, now + 0.08); // ドスンをさらに控えめに
   g.gain.exponentialRampToValueAtTime(0.0001, now + 2.0);
   o.connect(g).connect(sfxBus);
   o.start(now); o.stop(now + 2.1);
-  // intro テイストのベルの華やぎ(駆け上がり)
-  [440, 523.25, 659.25, 880, 1046.5].forEach((f, i) => bell(f, now + 0.06 + i * 0.06, 0.16, 1.5, i % 2 ? 0.4 : -0.4));
+  // 余韻のベル(やわらかく数音だけ)
+  [440, 659.25, 880].forEach((f, i) => bell(f, now + 0.1 + i * 0.12, 0.09, 1.8, i % 2 ? 0.35 : -0.35));
 }
 
 // イベント種別に応じた効果音を鳴らす。🔇(消音)のときは鳴らさない。連発は間引く(超新星は除く)。

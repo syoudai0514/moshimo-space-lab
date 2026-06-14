@@ -364,48 +364,71 @@ export class SolarSystem {
     const origin = b.pos.clone().multiplyScalar(POS_SCALE);
     const baseR = Math.max(this.displayRadius(b), 1.5);
 
-    // 1) 白い大閃光(一瞬)
+    // 1) 白い大閃光(一瞬・控えめ)
     const flash = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: makeGlowTexture(), color: 0xffffff, transparent: true, opacity: 1,
+      map: makeGlowTexture(), color: 0xfff0dd, transparent: true, opacity: 0.9,
       depthWrite: false, blending: THREE.AdditiveBlending,
     }));
     flash.position.copy(origin);
     this.scene.add(flash);
-    this.explosions.push({ kind: 'sprite', obj: flash, start: now, dur: 0.8, s0: baseR * 4, s1: baseR * 80, o0: 1, p: 2 });
+    this.explosions.push({ kind: 'sprite', obj: flash, start: now, dur: 0.7, s0: baseR * 4, s1: baseR * 55, o0: 0.9, p: 2 });
 
-    // 2) 超新星残骸の星雲(カニ星雲風のテクスチャ)。膨張しながらゆっくり消える。2枚を別回転で重ねて混色。
-    for (let i = 0; i < 2; i++) {
-      const neb = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: makeNebulaTexture(), transparent: true, opacity: 0.9,
-        depthWrite: false, blending: THREE.AdditiveBlending, rotation: Math.random() * Math.PI * 2,
+    // 回転軸(ほぼ縦に、すこしランダムに傾ける)とその直交基底
+    const ax = new THREE.Vector3((Math.random() - 0.5) * 0.5, 1, (Math.random() - 0.5) * 0.5).normalize();
+    const tmp = Math.abs(ax.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+    const e1 = new THREE.Vector3().crossVectors(ax, tmp).normalize();
+    const e2 = new THREE.Vector3().crossVectors(ax, e1).normalize();
+
+    // 2) 双極ジェット(中性子星/コラプサー型): 上下の極から細く速いガスを噴き出す
+    const addParticles = (build, count, size, dur, o0) => {
+      const pos = new Float32Array(count * 3), col = new Float32Array(count * 3), vel = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        const v = new THREE.Vector3(), c = [0, 0, 0];
+        build(i, v, c);
+        pos[i * 3] = origin.x; pos[i * 3 + 1] = origin.y; pos[i * 3 + 2] = origin.z;
+        vel[i * 3] = v.x; vel[i * 3 + 1] = v.y; vel[i * 3 + 2] = v.z;
+        col[i * 3] = c[0]; col[i * 3 + 1] = c[1]; col[i * 3 + 2] = c[2];
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      const pts = new THREE.Points(geo, new THREE.PointsMaterial({
+        map: softCircle(), size, sizeAttenuation: false, vertexColors: true,
+        transparent: true, opacity: o0, depthWrite: false, blending: THREE.AdditiveBlending,
       }));
-      neb.position.copy(origin);
-      this.scene.add(neb);
-      this.explosions.push({ kind: 'sprite', obj: neb, start: now + i * 0.05, dur: 3.4, s0: baseR * 8, s1: baseR * (90 + i * 30), o0: 0.85, p: 1.25 });
-    }
+      pts.frustumCulled = false;
+      this.scene.add(pts);
+      this.explosions.push({ kind: 'particles', obj: pts, start: now, dur, o0, ox: origin.x, oy: origin.y, oz: origin.z, vel });
+    };
+    const _t = new THREE.Vector3();
+    addParticles((i, v, c) => {
+      const sgn = i % 2 ? 1 : -1;                       // 上下のジェット
+      const sp = 26 + Math.random() * 34;
+      const spread = Math.pow(Math.random(), 1.5) * 0.18; // 細く収束(コリメート)
+      const pa = Math.random() * Math.PI * 2;
+      v.copy(ax).multiplyScalar(sgn).addScaledVector(e1, Math.cos(pa) * spread).addScaledVector(e2, Math.sin(pa) * spread).normalize().multiplyScalar(sp);
+      const w = 0.6 + 0.4 * Math.random();              // 青白い相対論的ジェット
+      c[0] = 0.7 * w + 0.3; c[1] = 0.85 * w + 0.15; c[2] = 1.0;
+    }, 150, 13, 2.4, 0.85);
 
-    // 3) 飛び散るガスのフィラメント(柔らかい点を多数 → 重なってモヤになる)
-    const N = 260;
-    const pos = new Float32Array(N * 3), col = new Float32Array(N * 3), vel = new Float32Array(N * 3);
-    const PAL = [[1, .55, .25], [1, .8, .4], [.3, .85, 1], [1, .35, .7], [.55, 1, .8], [.75, .6, 1], [1, 1, 1]];
-    for (let i = 0; i < N; i++) {
-      const u = Math.random() * 2 - 1, ph = Math.random() * Math.PI * 2, s = Math.sqrt(1 - u * u);
-      const sp = (4 + Math.random() * 24) * (0.5 + Math.random()); // バラけた速度で星雲の濃淡に
-      pos[i * 3] = origin.x; pos[i * 3 + 1] = origin.y; pos[i * 3 + 2] = origin.z;
-      vel[i * 3] = s * Math.cos(ph) * sp; vel[i * 3 + 1] = u * sp; vel[i * 3 + 2] = s * Math.sin(ph) * sp;
-      const c = PAL[(Math.random() * PAL.length) | 0];
-      col[i * 3] = c[0]; col[i * 3 + 1] = c[1]; col[i * 3 + 2] = c[2];
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    const pts = new THREE.Points(geo, new THREE.PointsMaterial({
-      map: softCircle(), size: 22, sizeAttenuation: false, vertexColors: true,
-      transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending,
+    // 3) 赤道方向に広がる残骸ガス(ジェットと垂直の面。ゆっくり・赤〜オレンジ)
+    addParticles((i, v, c) => {
+      const th = Math.random() * Math.PI * 2;
+      const sp = (7 + Math.random() * 16) * (0.7 + 0.3 * Math.random());
+      const lift = (Math.random() - 0.5) * 0.25;
+      v.copy(e1).multiplyScalar(Math.cos(th)).addScaledVector(e2, Math.sin(th)).addScaledVector(ax, lift).normalize().multiplyScalar(sp);
+      const k = Math.random();
+      c[0] = 1.0; c[1] = 0.35 + 0.4 * k; c[2] = 0.1 + 0.15 * k; // 赤〜オレンジ
+    }, 130, 18, 3.2, 0.7);
+
+    // 4) ほのかな残骸の星雲グロー(控えめ)
+    const neb = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: makeNebulaTexture(), transparent: true, opacity: 0.5,
+      depthWrite: false, blending: THREE.AdditiveBlending, rotation: Math.random() * Math.PI * 2,
     }));
-    pts.frustumCulled = false;
-    this.scene.add(pts);
-    this.explosions.push({ kind: 'particles', obj: pts, start: now, dur: 3.2, o0: 0.85, ox: origin.x, oy: origin.y, oz: origin.z, vel });
+    neb.position.copy(origin);
+    this.scene.add(neb);
+    this.explosions.push({ kind: 'sprite', obj: neb, start: now, dur: 3.4, s0: baseR * 8, s1: baseR * 80, o0: 0.5, p: 1.3 });
   }
 
   _revertBlackHole(b) {
@@ -821,40 +844,43 @@ function makeBlackHoleTexture() {
   const S = 512;
   const cv = document.createElement('canvas');
   cv.width = cv.height = S;
-  const cx = S / 2, cy = S / 2, rs = S * 0.15;
-  const Rring = 1.22, ringW = 0.16, thick = 0.16;
+  const cx = S / 2, cy = S / 2, rs = S * 0.13;
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+  const g = (z) => Math.exp(-(z * z));
   const ctx2 = cv.getContext('2d');
   const img = ctx2.createImageData(S, S);
   const d = img.data;
   for (let i = 0; i < S; i++) {
     for (let j = 0; j < S; j++) {
       const nx = (j - cx) / rs, ny = (i - cy) / rs;
-      const r = Math.hypot(nx, ny), rm = Math.max(r, 0.3);
-      const up = clamp(-ny / rm, 0, 1), down = clamp(ny / rm, 0, 1);
-      const gauss = (z) => Math.exp(-(z * z));
-      const ring = gauss((r - Rring) / ringW) * (0.4 + 0.95 * up + 0.3 * down);
-      const wing = gauss(ny / thick) * gauss((r - 1.6) / 1.4);
-      const dopp = clamp(1 + 1.15 * (-nx) / Math.max(r, 0.25), 0.12, 2.2);
-      let disk = (ring * 0.95 + wing * 1.15) * dopp * 0.95;
-      // 色: 内縁オレンジ→赤(白熱は光子リングだけ)
-      const t = clamp((r - 1) / 1.6, 0, 1);
-      const s1 = clamp(t / 0.45, 0, 1), s2 = clamp((t - 0.45) / 0.55, 0, 1);
-      let cr = 1.0 + (0.5 - 1.0) * s2;
-      let cg = 0.62 + (0.40 - 0.62) * s1; cg += (0.08 - cg) * s2;
-      let cb = 0.28 + (0.10 - 0.28) * s1; cb += (0.03 - cb) * s2;
-      const warm = clamp(dopp / 1.3, 0.45, 1.15);
+      const r = Math.hypot(nx, ny), rm = Math.max(r, 0.22);
+      // 太い水平の円盤 + 手前を横切る芯 + レンズで持ち上がる上のアーチ + 下のうっすら
+      const diskH = Math.exp(-clamp(r - 1, 0, 9) * 0.40);
+      const disk0 = g(ny / 0.40) * diskH;
+      const coreband = g((ny - 0.16) / 0.16) * diskH * 1.25;
+      const arch = g((r - 1.24) / 0.30) * Math.pow(clamp(-ny / rm, 0, 1), 0.8) * 1.3;
+      const under = g((r - 1.18) / 0.22) * Math.pow(clamp(ny / rm, 0, 1), 1.2) * 0.5;
+      let bright = disk0 + coreband * 0.9 + arch + under;
+      const dopp = clamp(1 + 1.35 * (-nx) / Math.max(r, 0.22), 0.1, 2.5);
+      bright *= dopp;
+      // 色: 内縁=白熱 → オレンジ → 外縁=深い赤
+      const t = clamp((r - 1) / 2.0, 0, 1);
+      const s1 = clamp(t / 0.4, 0, 1), s2 = clamp((t - 0.4) / 0.6, 0, 1);
+      let cr = 1.0 + (1.0 - 1.0) * s1; cr += (0.45 - cr) * s2;
+      let cg = 0.70 + (0.34 - 0.70) * s1; cg += (0.06 - cg) * s2;
+      let cb = 0.38 + (0.09 - 0.38) * s1; cb += (0.02 - cb) * s2;
+      const warm = clamp(dopp / 1.4, 0.4, 1.15);
       cg *= warm; cb *= warm;
-      let R = cr * disk, G = cg * disk, B = cb * disk;
-      const photon = gauss((r - 1) / 0.045) * 1.25;
-      R += photon; G += photon * 0.92; B += photon * 0.78;
-      // 影(手前=下の円盤だけ前を横切る)
-      const front = ny > 0 && Math.abs(ny) < thick * 1.45;
-      const fade = r < 0.98 ? clamp((r - 0.72) / 0.26, 0, 1) : 1;
+      let R = cr * bright, G = cg * bright, B = cb * bright;
+      const photon = g((r - 1) / 0.05) * 0.9;
+      R += photon; G += photon * 0.88; B += photon * 0.7;
+      // 影: 手前(下)の帯は残し、中心を黒く
+      const front = ny > 0 && Math.abs(ny - 0.16) < 0.26;
+      const fade = r < 0.97 ? clamp((r - 0.66) / 0.31, 0, 1) : 1;
       R *= fade; G *= fade; B *= fade;
-      if (r < 0.5 && !front) { R = 0; G = 0; B = 0; }
+      if (r < 0.6 && !front) { R = 0; G = 0; B = 0; }
       // トーンマップ
-      R = R / (1 + 0.45 * R); G = G / (1 + 0.45 * G); B = B / (1 + 0.45 * B);
+      R = R / (1 + 0.5 * R); G = G / (1 + 0.5 * G); B = B / (1 + 0.5 * B);
       const k = (i * S + j) * 4;
       d[k] = clamp(R, 0, 1) * 255; d[k + 1] = clamp(G, 0, 1) * 255; d[k + 2] = clamp(B, 0, 1) * 255; d[k + 3] = 255;
     }
