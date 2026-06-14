@@ -315,10 +315,62 @@ function sfxEscaped() {
   }
 }
 
-// イベント種別に応じた効果音を鳴らす。🔇(消音)のときは鳴らさない。
+// 合体: 深く重い「ドゥンッ」という衝突感。
+function sfxMerge() {
+  const now = ctx.currentTime;
+  const o = ctx.createOscillator();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(150, now);
+  o.frequency.exponentialRampToValueAtTime(45, now + 0.5);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, now);
+  g.gain.exponentialRampToValueAtTime(0.5, now + 0.03);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
+  o.connect(g).connect(sfxBus);
+  o.start(now); o.stop(now + 0.8);
+}
+
+// 超新星爆発: 巨大なノイズの炸裂 + 地を這う重低音 + 長い轟き。
+function sfxSupernova() {
+  const now = ctx.currentTime;
+  // 炸裂(ホワイトノイズのバースト)
+  const n = ctx.createBufferSource();
+  n.buffer = getNoise(); n.loop = true;
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'lowpass';
+  bp.frequency.setValueAtTime(6000, now);
+  bp.frequency.exponentialRampToValueAtTime(200, now + 2.2);
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.0001, now);
+  ng.gain.exponentialRampToValueAtTime(0.6, now + 0.05);
+  ng.gain.exponentialRampToValueAtTime(0.0001, now + 2.4);
+  n.connect(bp).connect(ng).connect(sfxBus);
+  n.start(now); n.stop(now + 2.5);
+  // 重低音の衝撃
+  const o = ctx.createOscillator();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(90, now);
+  o.frequency.exponentialRampToValueAtTime(24, now + 1.6);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, now);
+  g.gain.exponentialRampToValueAtTime(0.8, now + 0.04);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + 2.0);
+  o.connect(g).connect(sfxBus);
+  o.start(now); o.stop(now + 2.1);
+}
+
+// イベント種別に応じた効果音を鳴らす。🔇(消音)のときは鳴らさない。連発は間引く(超新星は除く)。
+let lastSfxT = -1;
 export function playSfx(type) {
   if (!unlocked || !bgmEnabled()) return; // 解禁前は鳴らさない(suspendedな文脈を作らない)
   if (ctx.state === 'suspended') ctx.resume();
+  if (type !== 'supernova') {
+    const now = ctx.currentTime;
+    if (now - lastSfxT < 0.14) return; // 連発を間引く
+    lastSfxT = now;
+  }
   if (type === 'absorbed') sfxAbsorbed();
   else if (type === 'escaped') sfxEscaped();
+  else if (type === 'merge') sfxMerge();
+  else if (type === 'supernova') sfxSupernova();
 }

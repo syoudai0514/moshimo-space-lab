@@ -5,9 +5,9 @@ import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=11';
 import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=3';
 import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=3';
 import { SCENARIOS } from './scenarios.js?v=3';
-import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=10';
+import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=11';
 import { SCENARIO_I18N, OBSERVE_I18N } from './i18n-data.js?v=1';
-import { bgmEnabled, startBGM, toggleBGM, isPlaying as bgmIsPlaying, playSfx, unlockAudio } from './audio.js?v=6';
+import { bgmEnabled, startBGM, toggleBGM, isPlaying as bgmIsPlaying, playSfx, unlockAudio } from './audio.js?v=7';
 
 const SI = (sc) => SCENARIO_I18N[getLang()]?.[sc.id]; // 現在言語の実験翻訳(無ければ undefined)
 // 実験の表示用タイトル・問い。日本語のときは子供向けにふりがな付き。
@@ -289,14 +289,15 @@ function clearLog() {
 }
 
 solar.onEvent = (ev) => {
-  if (attractMode) return; // デモ中は通知・ログ・振動を出さない(キャプションと重ならないように)
+  playSfx(ev.type);              // 効果音はデモ中でも鳴らす(連発はaudio側で間引く)
+  if (ev.type === 'supernova') triggerFlash(); // 大爆発はデモ中でも画面を光らせる
+  if (attractMode) return;       // デモ中は通知・ログ・振動は出さない(キャプションと被らないように)
   const msg = fmt(t(`event.${ev.type}.msg`), { name: bodyName(solar.getBody(ev.key)) });
   toast({ type: ev.type, msg });
   logEvent(msg);
-  // 効果音(飲み込み/飛び去りで別の音)と触覚フィードバック
-  playSfx(ev.type);
   if (navigator.vibrate) {
-    if (ev.type === 'absorbed') navigator.vibrate([45, 35, 130]); // 落下 → ドスンという衝突
+    if (ev.type === 'supernova') navigator.vibrate([60, 40, 200, 60, 120]); // 大爆発
+    else if (ev.type === 'absorbed') navigator.vibrate([45, 35, 130]); // 落下 → ドスンという衝突
     else if (ev.type === 'escaped') navigator.vibrate(220);       // ひと息に飛び去る
   }
 };

@@ -8,7 +8,7 @@
 // ズームすると渦巻の腕まで見える。
 
 import * as THREE from 'three';
-import { getLang, fmtYears } from './i18n.js?v=10';
+import { getLang, fmtYears } from './i18n.js?v=11';
 import { OBSERVE_I18N } from './i18n-data.js?v=1';
 const uo = (k) => (getLang() === 'ja' ? null : OBSERVE_I18N[getLang()]?.[k]);
 function uTmpl(key, jaVal, obj) { const t = uo(key) ?? jaVal; return obj ? t.replace(/\{(\w+)\}/g, (_, k) => (obj[k] ?? '')) : t; }
