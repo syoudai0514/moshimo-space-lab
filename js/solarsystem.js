@@ -337,6 +337,7 @@ export class SolarSystem {
     b.isBlackHole = true;
     b.radiusKm = Math.max(b.radiusKm, 696000 * 0.6); // 見えるコンパクト天体に
     b.mesh.material.color.setHex(0x000000);          // 影(背景の星を隠す黒い球)
+    b.marker.visible = false;                        // 中心の色マーカーは消す(影を汚さない)
     // ブラックホール本体: カメラを向くビルボード。降着円盤が重力レンズで影の上下に
     // 回り込む「インターステラー型」の見た目をテクスチャで表現。
     const spr = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -679,12 +680,12 @@ export class SolarSystem {
       if (!b.alive) continue;
       const p = b.mesh.position.copy(b.pos).multiplyScalar(POS_SCALE);
       // 影(黒い球)はブラックホールのときテクスチャの影の中に収める(降着円盤を隠さない)
-      b.mesh.scale.setScalar(Math.max(this.displayRadius(b) * (b.isBlackHole ? 0.5 : 1), 1e-6));
+      b.mesh.scale.setScalar(Math.max(this.displayRadius(b) * (b.isBlackHole ? 0.62 : 1), 1e-6));
       b.marker.position.copy(p);
       b.label.position.copy(p);
       if (b.isBlackHole && b.accretion) {
-        b.accretion.position.copy(p);                         // カメラを向くビルボード
-        b.accretion.scale.setScalar(Math.max(this.displayRadius(b) * 7.5, 1.4));
+        b.accretion.position.copy(p);                         // カメラを向くビルボード(大きめ=主役)
+        b.accretion.scale.setScalar(Math.max(this.displayRadius(b) * 11, 2.0));
       }
     }
     const sun = this.bodies[0];
@@ -880,8 +881,9 @@ function makeBlackHoleTexture() {
       const fade = r < 0.97 ? clamp((r - 0.66) / 0.31, 0, 1) : 1;
       R *= fade; G *= fade; B *= fade;
       if (r < 0.64 && !frontBand) { R = 0; G = 0; B = 0; }
-      // トーンマップ
-      R = R / (1 + 0.45 * R); G = G / (1 + 0.45 * G); B = B / (1 + 0.45 * B);
+      // 明るさを上げてからトーンマップ(小さく表示しても映えるように)
+      R *= 1.35; G *= 1.35; B *= 1.35;
+      R = R / (1 + 0.30 * R); G = G / (1 + 0.30 * G); B = B / (1 + 0.30 * B);
       const k = (i * S + j) * 4;
       d[k] = clamp(R, 0, 1) * 255; d[k + 1] = clamp(G, 0, 1) * 255; d[k + 2] = clamp(B, 0, 1) * 255; d[k + 3] = 255;
     }
