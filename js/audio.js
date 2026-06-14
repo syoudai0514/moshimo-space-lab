@@ -77,33 +77,35 @@ function ensureGraph() {
   sfxVerb.connect(sfxVerbGain).connect(ctx.destination);
 }
 
+let seqTimer = null;   // アルペジオ/ベースのステップシーケンサ
+let seqStep = 0;
+
 function build() {
   ensureGraph();
   dronesBuilt = true;
 
-  // ドローンを通すローパス + ゆっくり動かす LFO(呼吸感)
+  // 持続パッド(Am add9)を通すローパス + ゆっくり動く LFO(呼吸感)。動画と同じ宇宙感の土台。
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass';
-  filter.frequency.value = 480;
-  filter.Q.value = 0.7;
+  filter.frequency.value = 900;
+  filter.Q.value = 0.6;
   filter.connect(master);
   filter.connect(reverb);
 
   const lfo = ctx.createOscillator();
-  lfo.frequency.value = 0.045;
+  lfo.frequency.value = 0.05;
   const lfoGain = ctx.createGain();
-  lfoGain.gain.value = 260;
+  lfoGain.gain.value = 320;
   lfo.connect(lfoGain).connect(filter.frequency);
   lfo.start();
 
-  // 低い持続音(A をルートにした和音)。わずかにデチューンを揺らして厚みを出す
-  const freqs = [55, 82.41, 110, 164.81];
-  for (const f of freqs) {
+  // パッド和音(A マイナー add9)。わずかにデチューンを揺らして厚みを出す
+  for (const f of [110, 164.81, 220, 261.63, 329.63]) {
     const o = ctx.createOscillator();
     o.type = 'sine';
     o.frequency.value = f;
     const g = ctx.createGain();
-    g.gain.value = 0.09;
+    g.gain.value = 0.045;
     const det = ctx.createOscillator();
     det.frequency.value = 0.06 + Math.random() * 0.06;
     const detG = ctx.createGain();
@@ -113,6 +115,46 @@ function build() {
     o.connect(g).connect(filter);
     o.start();
   }
+}
+
+// 単音(アルペジオ/ベース)。master と reverb に送る。
+function voice(freq, amp, type, decay, pan) {
+  const now = ctx.currentTime;
+  const o = ctx.createOscillator();
+  o.type = type;
+  o.frequency.value = freq;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, now);
+  g.gain.exponentialRampToValueAtTime(amp, now + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + decay);
+  o.connect(g);
+  let out = g;
+  if (pan && ctx.createStereoPanner) {
+    const p = ctx.createStereoPanner();
+    p.pan.value = pan;
+    g.connect(p);
+    out = p;
+  }
+  out.connect(master);
+  const rg = ctx.createGain();
+  rg.gain.value = 0.28;
+  out.connect(rg).connect(reverb);
+  o.start(now);
+  o.stop(now + decay + 0.05);
+}
+
+// ステップシーケンサ: ペンタトニックのアルペジオ + 四分のベースパルス(動画と同じノリ)
+const ARP = [220, 261.63, 329.63, 392, 440, 392, 329.63, 293.66]; // A3 C4 E4 G4 A4 G4 E4 D4
+const BPM = 120;
+const EIGHTH = 60 / BPM / 2; // 秒
+function seqTick() {
+  if (!playing || !ctx) return;
+  const s = seqStep++;
+  const f = ARP[s % ARP.length];
+  voice(f, 0.05, 'triangle', 0.32, 0.5 * Math.sin(s));
+  voice(f, 0.025, 'sine', 0.36, 0);
+  if (s % 2 === 0) voice(s % 8 < 4 ? 55 : 82.41, 0.10, 'sine', 0.24, 0); // ベース(四分)
+  seqTimer = setTimeout(seqTick, EIGHTH * 1000);
 }
 
 // 星のまたたき(ペンタトニックの柔らかいベル)
@@ -154,7 +196,9 @@ export function startBGM() {
   master.gain.cancelScheduledValues(t);
   master.gain.setValueAtTime(master.gain.value, t);
   master.gain.linearRampToValueAtTime(0.12, t + 1.4); // フェードイン(短め=押してすぐ聞こえる)
-  scheduleBell();
+  seqStep = 0;
+  seqTick();      // アルペジオ+ベース開始
+  scheduleBell(); // 星のまたたき
 }
 
 export function stopBGM() {
@@ -165,6 +209,7 @@ export function stopBGM() {
   master.gain.setValueAtTime(master.gain.value, t);
   master.gain.linearRampToValueAtTime(0, t + 1.2); // ゆっくりフェードアウト
   if (bellTimer) { clearTimeout(bellTimer); bellTimer = null; }
+  if (seqTimer) { clearTimeout(seqTimer); seqTimer = null; }
 }
 
 // ボタン用: ON/OFF を切り替えて新しい状態(再生中か)を返す

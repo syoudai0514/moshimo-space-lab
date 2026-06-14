@@ -816,8 +816,7 @@ function softCircle() {
 }
 
 // ブラックホールの見た目(インターステラー/ガルガンチュア型)。カメラを向くビルボード。
-// 重力レンズで降着円盤の向こう側が影の「上下に回り込む」ハロー、手前側は影の前を横切る、
-// ドップラーで左(接近側)が明るく右(後退側)が暗い、光子リング、影、を重ねて描く。
+// なめらかな発光(ブラー)で、円盤・上下に回り込むハロー・光子リング・影を重ねる。
 function makeBlackHoleTexture() {
   const S = 1024;
   const cv = document.createElement('canvas');
@@ -825,64 +824,57 @@ function makeBlackHoleTexture() {
   const x = cv.getContext('2d');
   const Rs = S * 0.15;          // 影(シャドウ)半径
   x.translate(S / 2, S / 2);
+  x.globalCompositeOperation = 'lighter';
 
-  // 細い帯を1本描く(円盤のフィラメント)。frac:0=内縁(白熱)→1=外縁(赤)
-  const band = (rx, ry, frac, alpha) => {
-    const warm = 1 - frac;
-    const r = 255;
-    const g = Math.round(110 + 140 * warm);
-    const b = Math.round(35 + 130 * warm * warm);
-    const grad = x.createLinearGradient(-rx, 0, rx, 0);
-    grad.addColorStop(0.00, `rgba(255,255,250,${Math.min(1, alpha * 1.8)})`); // 左=接近=白く明るい
-    grad.addColorStop(0.35, `rgba(${r},${g},${b},${alpha})`);
-    grad.addColorStop(1.00, `rgba(${(r * 0.6) | 0},${(g * 0.35) | 0},${(b * 0.35) | 0},${alpha * 0.4})`); // 右=後退=暗い赤
-    x.strokeStyle = grad;
-    x.lineWidth = Math.max(1.2, ry * 0.05);
+  // ドップラー(左=接近=白く明るい / 右=後退=暗い赤)を込めた水平グラデを作る
+  const diskGrad = (rx, inner, mid, outer) => {
+    const g = x.createLinearGradient(-rx, 0, rx, 0);
+    g.addColorStop(0.0, inner);
+    g.addColorStop(0.5, mid);
+    g.addColorStop(1.0, outer);
+    return g;
+  };
+  const ell = (rx, ry, lw, style, blur, blurCol) => {
+    x.save();
+    if (blur) { x.shadowBlur = blur; x.shadowColor = blurCol; }
+    x.lineWidth = lw;
+    x.strokeStyle = style;
     x.beginPath();
     x.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
     x.stroke();
+    x.restore();
   };
 
-  x.globalCompositeOperation = 'lighter'; // 重ねるほど明るく(発光)
+  // 1) 円盤の外側ハロー(広く淡いオレンジの広がり)
+  ell(S * 0.46, Rs * 0.62, Rs * 0.55,
+    diskGrad(S * 0.46, 'rgba(255,225,195,0.5)', 'rgba(255,105,40,0.2)', 'rgba(150,30,15,0.12)'),
+    Rs * 1.2, 'rgba(255,100,40,0.85)');
 
-  // 1) 平らな降着円盤(edge-on)。内側ほど白熱、外側ほど赤。多数の帯でフィラメント感。
-  const diskRx = S * 0.485, diskRy = Rs * 0.66;
-  for (let i = 0; i < 90; i++) {
-    const f = i / 90;
-    const rx = Rs * 1.05 + f * (diskRx - Rs * 1.05);
-    const ry = Rs * 0.14 + f * (diskRy - Rs * 0.14);
-    band(rx, ry, f, (0.045 + 0.09 * (1 - f)) * (0.85 + 0.3 * Math.random()));
-  }
+  // 2) 円盤の明るいコア(細め・白熱〜赤)
+  ell(S * 0.45, Rs * 0.5, Rs * 0.17,
+    diskGrad(S * 0.45, 'rgba(255,255,250,0.95)', 'rgba(255,150,60,0.55)', 'rgba(190,45,20,0.3)'),
+    Rs * 0.4, 'rgba(255,150,70,0.9)');
 
-  // 2) レンズで持ち上がったハロー(円盤の向こう側が影の上下に回り込む輪)。ほぼ円形。
-  for (let i = 0; i < 60; i++) {
-    const f = i / 60;
-    const rr = Rs * 1.03 + f * (Rs * 0.55);
-    band(rr, rr * 0.97, f * 0.6, (0.05 + 0.11 * (1 - f)) * (0.85 + 0.3 * Math.random()));
-  }
+  // 3) レンズで持ち上がったハロー(影の上下に回り込む環。ほぼ円)
+  ell(Rs * 1.22, Rs * 1.16, Rs * 0.2,
+    diskGrad(Rs * 1.22, 'rgba(255,250,235,1)', 'rgba(255,150,60,0.8)', 'rgba(210,60,25,0.5)'),
+    Rs * 0.45, 'rgba(255,130,55,1)');
 
-  // 3) 光子リング(影のふち。極細・極明)＋内側のにじみ
-  x.lineWidth = Rs * 0.018;
-  x.strokeStyle = 'rgba(255,245,225,0.95)';
-  x.beginPath(); x.ellipse(0, 0, Rs * 1.0, Rs * 0.97, 0, 0, Math.PI * 2); x.stroke();
-  x.lineWidth = Rs * 0.07;
-  x.strokeStyle = 'rgba(255,160,80,0.45)';
-  x.beginPath(); x.ellipse(0, 0, Rs * 1.05, Rs * 1.0, 0, 0, Math.PI * 2); x.stroke();
+  // 4) 光子リング(極細・白・くっきり)
+  ell(Rs * 1.02, Rs * 0.99, Rs * 0.03, 'rgba(255,248,232,1)', Rs * 0.2, 'rgba(255,210,170,1)');
 
-  // 4) シャドウをくっきり: 中心を黒で抜く(向こう側の円盤・ハローが影に被らないように)
+  // 5) 影をくっきり抜く(向こう側の円盤・ハローが影に被らないように)
   x.globalCompositeOperation = 'destination-out';
+  x.shadowBlur = 0;
   x.beginPath(); x.ellipse(0, 0, Rs * 0.97, Rs * 0.94, 0, 0, Math.PI * 2); x.fill();
 
-  // 5) 手前側の円盤を影の前に描き直す(下半分だけ = 影の手前を横切る帯)
+  // 6) 手前側の円盤を影の前に描き直す(下半分だけ = 影の手前を横切る)
   x.save();
   x.globalCompositeOperation = 'lighter';
-  x.beginPath(); x.rect(-S, 0, 2 * S, S); x.clip(); // 下半分にクリップ
-  for (let i = 0; i < 60; i++) {
-    const f = i / 60;
-    const rx = Rs * 0.55 + f * (diskRx - Rs * 0.55);
-    const ry = Rs * 0.10 + f * (diskRy - Rs * 0.10);
-    band(rx, ry, f, (0.05 + 0.10 * (1 - f)) * (0.85 + 0.3 * Math.random()));
-  }
+  x.beginPath(); x.rect(-S, 0, 2 * S, S); x.clip();
+  ell(S * 0.45, Rs * 0.5, Rs * 0.17,
+    diskGrad(S * 0.45, 'rgba(255,255,250,0.95)', 'rgba(255,150,60,0.55)', 'rgba(190,45,20,0.3)'),
+    Rs * 0.4, 'rgba(255,150,70,0.9)');
   x.restore();
 
   const tex = new THREE.CanvasTexture(cv);

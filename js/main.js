@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createGalaxy, createBackgroundStars } from './galaxy.js?v=2';
-import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=16';
+import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=17';
 import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=3';
 import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=3';
 import { SCENARIOS } from './scenarios.js?v=4';
 import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=12';
 import { SCENARIO_I18N, OBSERVE_I18N } from './i18n-data.js?v=2';
-import { bgmEnabled, startBGM, toggleBGM, isPlaying as bgmIsPlaying, playSfx, unlockAudio } from './audio.js?v=8';
+import { bgmEnabled, startBGM, toggleBGM, isPlaying as bgmIsPlaying, playSfx, unlockAudio } from './audio.js?v=9';
 
 const SI = (sc) => SCENARIO_I18N[getLang()]?.[sc.id]; // 現在言語の実験翻訳(無ければ undefined)
 // 実験の表示用タイトル・問い。日本語のときは子供向けにふりがな付き。
