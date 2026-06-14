@@ -130,6 +130,7 @@ export class SolarSystem {
       trailAttr, trailGeo, trail,
       trailCount: 0,
       lastTrail: null,
+      trailCells: null, // 「通った極座標セル」の記憶(重複した軌跡を増やさない)
     };
   }
 
@@ -430,6 +431,7 @@ export class SolarSystem {
     const b = this.getBody(key);
     b.trailCount = 0;
     b.lastTrail = null;
+    b.trailCells?.clear(); // 「通った場所」の記憶もリセット
     b.trailGeo.setDrawRange(0, 0);
   }
 
@@ -440,20 +442,41 @@ export class SolarSystem {
   _pushTrail(b, p) {
     // 点を打つ間隔は太陽からの距離に比例(=ほぼ等角度サンプリング)。
     // 太陽の近くを高速で回り込む鋭いカーブも滑らかに描ける
+    const sun = this.bodies[0];
     const step = b.key === 'sun'
       ? 0.1
-      : Math.max(0.02, b.pos.distanceTo(this.bodies[0].pos) * POS_SCALE * 0.025);
+      : Math.max(0.02, b.pos.distanceTo(sun.pos) * POS_SCALE * 0.025);
     if (b.lastTrail && b.lastTrail.distanceTo(p) < step) return;
+
+    // 同じ経路を二度なぞった部分は記録しない(太陽中心の極座標セルで判定)。
+    // 半径は対数で約2%刻み・角度は約1°刻み。形の同じ軌道を回り続けるかぎり
+    // 常に同じセル → スキップ。だから安定した軌道は「1周ぶんのきれいな楕円」で
+    // 固定され、軌道が変化して新しい形を描いた部分だけが追加される。
+    // = 古い軌跡はずっと残り、重なった部分だけが増えない(全履歴の醍醐味は維持)。
+    if (sun.alive && b.key !== 'sun') {
+      const dx = b.pos.x - sun.pos.x, dy = b.pos.y - sun.pos.y, dz = b.pos.z - sun.pos.z;
+      const r = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (r > 1e-6) {
+        const key = Math.round(Math.log(r) / 0.02) + '|'
+          + Math.round(Math.atan2(dz, dx) * (180 / Math.PI)) + '|'
+          + Math.round(dy / Math.max(r * 0.05, 1e-3));
+        if (!b.trailCells) b.trailCells = new Set();
+        if (b.trailCells.has(key)) {            // すでに通った場所 → 記録しない
+          b.lastTrail = (b.lastTrail ?? new THREE.Vector3()).copy(p);
+          return;
+        }
+        b.trailCells.add(key);
+      }
+    }
+
+    // 万一、別々の軌道で広い領域を覆い尽くしてバッファが満杯になったときだけ、
+    // 古い 1/4 を捨てて前へ詰める(通常の周回ではここには到達しない)。
     if (b.trailCount === TRAIL_MAX) {
-      // 満杯になったら古い側を 1/4 だけ捨てて前へ詰める(FIFO の巻き取り)。
-      // ※ 以前は「全履歴を1点おきに間引いて残す」方式だったが、何百周もしたあとは
-      //   古い点が粗くなりすぎ、離れた点どうしを結ぶ直線が軌道を横切って
-      //   「実際には通っていない経路」に見える網目状のノイズになっていた。
-      //   直近 9000 点ぶん(どの惑星でもおよそ数十周ぶん)の滑らかな軌跡を保つ。
       const arr = b.trailAttr.array;
       const drop = TRAIL_MAX >> 2;
       arr.copyWithin(0, drop * 3, TRAIL_MAX * 3);
       b.trailCount = TRAIL_MAX - drop;
+      b.trailCells?.clear();
     }
     b.trailAttr.setXYZ(b.trailCount, p.x, p.y, p.z);
     b.trailCount++;
