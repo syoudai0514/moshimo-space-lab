@@ -271,9 +271,26 @@ export class SolarSystem {
     return Math.sqrt(aMax);
   }
 
+  // 各天体が「いま一番強く引かれている恒星/BH」を求めて記録する(軌跡の点間隔用)。
+  // フレーム頭で1回だけ。中心が太陽でない連星系でも軌跡が滑らかになる。
+  _assignHosts() {
+    const stars = this.bodies.filter((s) => s.alive && (s.star || s.isBlackHole));
+    for (const b of this.bodies) {
+      if (!b.alive) continue;
+      let host = null, best = Infinity;
+      for (const s of stars) {
+        if (s === b) continue;
+        const d = b.pos.distanceToSquared(s.pos);
+        if (d < best) { best = d; host = s; }
+      }
+      b.trailHost = host || this.bodies[0];
+    }
+  }
+
   // dtYears ぶんシミュレーションを進める。
   // 接近遭遇などで加速度が大きいときは刻み幅を自動で細かくする。
   advance(dtYears) {
+    this._assignHosts();
     let remaining = dtYears;
     let steps = 0;
     while (remaining > 1e-9 && steps < MAX_STEPS) {
@@ -612,11 +629,12 @@ export class SolarSystem {
   }
 
   _pushTrail(b, p) {
-    // 点を打つ間隔は太陽からの距離に比例(=ほぼ等角度サンプリング)。
-    // 太陽の近くを高速で回り込む鋭いカーブも滑らかに描ける
+    // 点を打つ間隔は「いま実際に回っている一番近い恒星/BHからの距離」に比例
+    // (=ほぼ等角度サンプリング)。中心が太陽でない連星系でも多角形にならず滑らか。
+    const host = (b.trailHost && b.trailHost.alive) ? b.trailHost : this.bodies[0];
     const step = b.key === 'sun'
       ? 0.1
-      : Math.max(0.02, b.pos.distanceTo(this.bodies[0].pos) * POS_SCALE * 0.025);
+      : Math.max(0.015, b.pos.distanceTo(host.pos) * POS_SCALE * 0.02);
     if (b.lastTrail && b.lastTrail.distanceTo(p) < step) return;
 
     // 通った順に1本の線としてつなぐ(なめらか・偽の経路なし)。満杯になったら
