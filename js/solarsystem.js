@@ -617,10 +617,20 @@ export class SolarSystem {
       }
     }
     const sun = this.bodies[0];
-    this.glow.position.copy(sun.mesh.position);
-    this.glow.scale.setScalar(Math.max(this.displayRadius(sun) * 6, 0.5));
-    if (sun.isBlackHole) this.glow.visible = false;
-    this.light.position.copy(sun.mesh.position);
+    // 太陽の光芒は、太陽が生きていて表示中でBHでないときだけ出す。
+    // (太陽が別の恒星に吸収された場合に、光だけ取り残されるのを防ぐ)
+    this.glow.visible = sun.alive && sun.mesh.visible && !sun.isBlackHole;
+    if (this.glow.visible) {
+      this.glow.position.copy(sun.mesh.position);
+      this.glow.scale.setScalar(Math.max(this.displayRadius(sun) * 6, 0.5));
+    }
+    // 点光源は「生きている最も重い恒星/BH」に追従(太陽が吸収されても暗転しない)
+    let src = null, maxM = -1;
+    for (const b of this.bodies) {
+      if (b.alive && (b.star || b.isBlackHole) && this.effMass(b) > maxM) { maxM = this.effMass(b); src = b; }
+    }
+    if (src) { this.light.position.copy(src.mesh.position); this.light.intensity = 3; }
+    else this.light.intensity = 0;
 
     // 超新星爆発の閃光: 時間とともに膨張・減衰して消える
     if (this.explosions.length) {
