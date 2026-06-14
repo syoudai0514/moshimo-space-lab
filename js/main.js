@@ -1220,6 +1220,38 @@ function triggerFlash() {
   requestAnimationFrame(() => flashEl.classList.remove('on')); // そこから0.5sでフェード
 }
 
+// オープニングのキャッチコピー(動画と同じ。日本語が主役・英語は控えめ字幕)。
+// cjp は [青パート, アンバーパート] の2色。
+const CINE_TEXT = {
+  'sun-vanish': { hj: 'もしも太陽が消えたら？', he: 'What if the Sun vanished?',
+    cjp: ['うわぁ！！', 'どっか行った！？'], ce: 'Whoa!! Where did they go!?' },
+  'all-fall': { hj: 'もしも惑星がぜんぶ止まったら？', he: 'What if every planet stopped?',
+    cjp: ['つぎつぎ', 'のみこまれる！？'], ce: 'One by one, into the Sun!' },
+  'jupiter-monster': { hj: 'もしも木星が怪物みたいに重くなったら？', he: 'What if Jupiter became a monster?',
+    cjp: ['主役、', '交代！？'], ce: 'Jupiter takes over the system!' },
+  'jupiter-star': { hj: 'もしも木星が恒星になったら？', he: 'What if Jupiter became a star?',
+    cjp: ['なに？！', 'この動き？！'], ce: 'What IS this motion?!' },
+  'sun-mercury-swap': { hj: 'もしも太陽と水星を入れ替えたら？', he: 'What if the Sun and Mercury swapped?',
+    cjp: ['うわっ、', 'ぐちゃぐちゃ！？'], ce: 'Total chaos!?' },
+};
+const captionEl = $('attract-caption');
+function showHookCaption(sc) {
+  const t = CINE_TEXT[sc?.id];
+  if (!captionEl || !t) { captionEl?.classList.add('hidden'); return; }
+  captionEl.innerHTML = `<div class="jp">${t.hj}</div><div class="en">${t.he}</div>`;
+  captionEl.classList.remove('hidden', 'pop');
+}
+function showClimaxCaption(sc) {
+  const t = CINE_TEXT[sc?.id];
+  if (!captionEl || !t) return;
+  captionEl.innerHTML =
+    `<div class="jp"><span class="b">${t.cjp[0]}</span><span class="a">${t.cjp[1]}</span></div>`
+    + `<div class="en">${t.ce}</div>`;
+  captionEl.classList.remove('hidden');
+  captionEl.classList.remove('pop'); void captionEl.offsetWidth; captionEl.classList.add('pop'); // 再アニメ
+}
+function hideCaption() { captionEl?.classList.add('hidden'); }
+
 function startAttract() {
   attractMode = true;
   attractHint.classList.remove('hidden');
@@ -1240,6 +1272,7 @@ function nextAttract() {
   speedSelect.value = OPENING_SPEED;
   attractBangPending = true;
   solarPlaying = true;
+  showHookCaption(attractBangSc); // 「もしも〜？」を表示
 }
 
 function stopAttract() {
@@ -1248,6 +1281,7 @@ function stopAttract() {
   attractBangPending = false;
   attractBangSc = null;
   attractHint.classList.add('hidden');
+  hideCaption();
   endScenario();
   solar.reset();
   clearLog();
@@ -1279,6 +1313,7 @@ function animate() {
         attractBangSc?.setup(solar);
         speedSelect.value = OPENING_BANG_SPEED;
         triggerFlash();
+        showClimaxCaption(attractBangSc); // 「うわぁ！！どっか行った！？」等に切替
       }
       if (attractTimer >= ATTRACT_PERIOD) nextAttract();
     }
