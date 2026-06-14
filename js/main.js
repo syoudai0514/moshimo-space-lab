@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createGalaxy, createBackgroundStars } from './galaxy.js?v=2';
-import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=5';
+import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=6';
 import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=3';
 import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=3';
 import { SCENARIOS } from './scenarios.js?v=3';
-import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=6';
+import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=7';
 import { SCENARIO_I18N, OBSERVE_I18N } from './i18n-data.js?v=1';
-import { bgmEnabled, startBGM, toggleBGM, isPlaying as bgmIsPlaying } from './audio.js?v=1';
+import { bgmEnabled, startBGM, toggleBGM, isPlaying as bgmIsPlaying, playSfx } from './audio.js?v=2';
 
 const SI = (sc) => SCENARIO_I18N[getLang()]?.[sc.id]; // 現在言語の実験翻訳(無ければ undefined)
 // 実験の表示用タイトル・問い。日本語のときは子供向けにふりがな付き。
@@ -24,6 +24,11 @@ const bodyName = (b) => (b && b.extra ? b.name : t(`body.${b.key}`));
 const fmt = (str, obj) => str.replace(/\{(\w+)\}/g, (_, k) => (obj[k] ?? ''));
 
 const APP_URL = 'https://syoudai0514.github.io/moshimo-space-lab/';
+
+// 物理定数(脱出速度の表示などに使う)。solarsystem.js と同じ単位系: AU・年・太陽質量。
+const GRAV = 4 * Math.PI * Math.PI;   // 万有引力定数 G
+const KMS_PER_AUYR = 4.74;            // AU/年 → km/s
+const DEFAULT_SPEED = '0.0833';       // 既定の再生速度(1ヶ月/秒)
 
 // ---------- レンダラー ----------
 const canvas = document.getElementById('view');
@@ -220,6 +225,12 @@ solar.onEvent = (ev) => {
   const msg = fmt(t(`event.${ev.type}.msg`), { name: bodyName(solar.getBody(ev.key)) });
   toast({ type: ev.type, msg });
   logEvent(msg);
+  // 効果音(飲み込み/飛び去りで別の音)と触覚フィードバック
+  playSfx(ev.type);
+  if (navigator.vibrate) {
+    if (ev.type === 'absorbed') navigator.vibrate([45, 35, 130]); // 落下 → ドスンという衝突
+    else if (ev.type === 'escaped') navigator.vibrate(220);       // ひと息に飛び去る
+  }
 };
 
 // ---------- 解説モーダル ----------
@@ -753,12 +764,21 @@ playBtn.addEventListener('click', () => {
   updatePlayBtn();
 });
 
+// カメラの視点(位置・注視点・追従)を初期状態に戻す
+function resetSolarView() {
+  followKey = null;
+  solarCam.position.set(0, 30, 65);
+  solarControls.target.set(0, 0, 0);
+  solarControls.update();
+}
+
 resetBtn.addEventListener('click', () => {
   endScenario();
   clearLog();
   clearEdits();
   solar.reset();
-  followKey = null;
+  resetSolarView();             // 視点も最初の俯瞰に戻す
+  speedSelect.value = DEFAULT_SPEED; // 速度も既定(1ヶ月/秒)に戻す
   updateFollowBtn();
   updateTimeDisplay();
   refreshPanel();
@@ -831,9 +851,15 @@ function refreshInfo() {
     if (b.escaped) lines.push(t('info.escaped'));
     if (b.key !== 'sun') {
       const r = b.pos.distanceTo(sun.pos);
-      const v = b.vel.clone().sub(sun.vel).length() * 4.74; // AU/年 → km/s
+      const v = b.vel.clone().sub(sun.vel).length() * KMS_PER_AUYR; // AU/年 → km/s
       lines.push(fmt(t('info.dist'), { r: r.toFixed(2) }));
       lines.push(fmt(t('info.speed'), { v: v.toFixed(1) }));
+      // 脱出速度(第二宇宙速度) v=√(2GM/r)。いまの速度がこれを超えると二度と戻らない。
+      if (sun.alive && r > 1e-6) {
+        const vEsc = Math.sqrt(2 * GRAV * solar.effMass(sun) / r) * KMS_PER_AUYR;
+        lines.push(fmt(t('info.escapeV'), { v: vEsc.toFixed(1) }));
+        if (v >= vEsc) lines.push(t('info.overEscape'));
+      }
     }
     const radiusKm = b.radiusKm * b.sizeScale;
     lines.push(fmt(t('info.radius'), { km: Math.round(radiusKm).toLocaleString(), x: (radiusKm / 6371).toPrecision(3) }));
@@ -1123,6 +1149,7 @@ function stopAttract() {
   clearLog();
   clearEdits();
   followKey = null;
+  speedSelect.value = DEFAULT_SPEED; // デモ終了後はまっさらな太陽系を既定速度(1ヶ月/秒)で
   updateFollowBtn();
   refreshPanel();
   updateTimeDisplay();

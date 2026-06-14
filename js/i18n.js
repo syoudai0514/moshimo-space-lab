@@ -34,7 +34,7 @@ export function t(key) {
 }
 
 // ---- ふりがな(振り仮名) ON/OFF ----
-let furigana = lsGet('mslab-furigana') !== '0'; // 既定 ON
+let furigana = lsGet('mslab-furigana') === '1'; // 既定 OFF(必要な子は後からONにできる)
 export function getFurigana() { return furigana; }
 export function setFurigana(on) { furigana = !!on; lsSet('mslab-furigana', on ? '1' : '0'); }
 // <ruby> の読み(<rt>)だけを外す。<b>/<br> などは残す。
@@ -235,6 +235,8 @@ const DICT = {
     'info.escaped': '🚀 太陽系のかなたへ…',
     'info.dist': '太陽からの距離: {r} AU',
     'info.speed': '速度: {v} km/s',
+    'info.escapeV': '<ruby>脱出速度<rt>だっしゅつそくど</rt></ruby>(<ruby>第二宇宙速度<rt>だいにうちゅうそくど</rt></ruby>): {v} km/s',
+    'info.overEscape': '⚠️ <ruby>脱出速度<rt>だっしゅつそくど</rt></ruby>を<ruby>超<rt>こ</rt></ruby>えています → <ruby>飛<rt>と</rt></ruby>び<ruby>去<rt>さ</rt></ruby>ります',
     'info.radius': '半径: {km} km (地球の{x}倍)',
     'info.massSun': '質量: 太陽の{x}倍',
     'info.massEarth': '質量: {v}',
@@ -362,6 +364,8 @@ const DICT = {
     'info.escaped': '🚀 Off beyond the Solar System…',
     'info.dist': 'Distance from Sun: {r} AU',
     'info.speed': 'Speed: {v} km/s',
+    'info.escapeV': 'Escape velocity (2nd cosmic velocity): {v} km/s',
+    'info.overEscape': '⚠️ Above escape velocity → it will fly away',
     'info.radius': 'Radius: {km} km ({x}× Earth)',
     'info.massSun': 'Mass: {x}× the Sun',
     'info.massEarth': 'Mass: {v}',
@@ -489,6 +493,8 @@ const DICT = {
     'info.escaped': '🚀 飞向太阳系之外…',
     'info.dist': '与太阳的距离：{r} AU',
     'info.speed': '速度：{v} km/s',
+    'info.escapeV': '逃逸速度（第二宇宙速度）：{v} km/s',
+    'info.overEscape': '⚠️ 已超过逃逸速度 → 即将飞走',
     'info.radius': '半径：{km} km（地球的{x}倍）',
     'info.massSun': '质量：太阳的{x}倍',
     'info.massEarth': '质量：{v}',
@@ -616,6 +622,8 @@ const DICT = {
     'info.escaped': '🚀 태양계 저편으로…',
     'info.dist': '태양으로부터의 거리: {r} AU',
     'info.speed': '속도: {v} km/s',
+    'info.escapeV': '탈출 속도(제2 우주 속도): {v} km/s',
+    'info.overEscape': '⚠️ 탈출 속도를 넘었습니다 → 날아갑니다',
     'info.radius': '반지름: {km} km (지구의 {x}배)',
     'info.massSun': '질량: 태양의 {x}배',
     'info.massEarth': '질량: {v}',

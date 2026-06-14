@@ -445,16 +445,15 @@ export class SolarSystem {
       : Math.max(0.02, b.pos.distanceTo(this.bodies[0].pos) * POS_SCALE * 0.025);
     if (b.lastTrail && b.lastTrail.distanceTo(p) < step) return;
     if (b.trailCount === TRAIL_MAX) {
-      // 満杯になっても軌跡は消さない。1点おきに間引いて全履歴を残す
-      // (古い部分の点がすこし粗くなるだけ)
+      // 満杯になったら古い側を 1/4 だけ捨てて前へ詰める(FIFO の巻き取り)。
+      // ※ 以前は「全履歴を1点おきに間引いて残す」方式だったが、何百周もしたあとは
+      //   古い点が粗くなりすぎ、離れた点どうしを結ぶ直線が軌道を横切って
+      //   「実際には通っていない経路」に見える網目状のノイズになっていた。
+      //   直近 9000 点ぶん(どの惑星でもおよそ数十周ぶん)の滑らかな軌跡を保つ。
       const arr = b.trailAttr.array;
-      const half = TRAIL_MAX >> 1;
-      for (let i = 1; i < half; i++) {
-        arr[i * 3] = arr[i * 6];
-        arr[i * 3 + 1] = arr[i * 6 + 1];
-        arr[i * 3 + 2] = arr[i * 6 + 2];
-      }
-      b.trailCount = half;
+      const drop = TRAIL_MAX >> 2;
+      arr.copyWithin(0, drop * 3, TRAIL_MAX * 3);
+      b.trailCount = TRAIL_MAX - drop;
     }
     b.trailAttr.setXYZ(b.trailCount, p.x, p.y, p.z);
     b.trailCount++;
