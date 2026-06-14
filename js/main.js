@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createGalaxy, createBackgroundStars } from './galaxy.js?v=2';
-import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=21';
+import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=22';
 import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=3';
 import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=3';
 import { SCENARIOS } from './scenarios.js?v=4';
-import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=13';
+import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=14';
 import { SCENARIO_I18N, OBSERVE_I18N } from './i18n-data.js?v=2';
 import { bgmEnabled, startBGM, toggleBGM, isPlaying as bgmIsPlaying, playSfx, unlockAudio } from './audio.js?v=12';
 
@@ -300,7 +300,11 @@ solar.onEvent = (ev) => {
   playSfx(ev.type);              // 効果音はデモ中でも鳴らす(連発はaudio側で間引く)
   if (ev.type === 'supernova') triggerFlash(); // 大爆発はデモ中でも画面を光らせる
   if (attractMode) return;       // デモ中は通知・ログ・振動は出さない(キャプションと被らないように)
-  const msg = fmt(t(`event.${ev.type}.msg`), { name: bodyName(solar.getBody(ev.key)) });
+  const host = ev.hostKey ? solar.getBody(ev.hostKey) : solar.getBody('sun');
+  const msg = fmt(t(`event.${ev.type}.msg`), {
+    name: bodyName(solar.getBody(ev.key)),
+    host: bodyName(host || solar.getBody('sun')),
+  });
   toast({ type: ev.type, msg });
   logEvent(msg);
   if (navigator.vibrate) {
@@ -811,12 +815,26 @@ zoomBtn.addEventListener('click', () => {
 
 // ---------- ウェルカム / オープニングメニュー ----------
 const welcomeOverlay = $('welcome-overlay');
-if (!localStorage.getItem('mslab-welcome-v1')) {
+function safeGetLocal(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function safeSetLocal(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // 保存できない環境でもアプリ本体は使えるようにする。
+  }
+}
+if (!safeGetLocal('mslab-welcome-v1')) {
   welcomeOverlay.classList.remove('hidden'); // 初回はデモの上にメニューを重ねて表示
 }
 function showMenu() { welcomeOverlay.classList.remove('hidden'); }
 function dismissWelcome(openLab) {
-  localStorage.setItem('mslab-welcome-v1', '1');
+  safeSetLocal('mslab-welcome-v1', '1');
   welcomeOverlay.classList.add('hidden');
   stopAttract();              // デモを止めて、まっさらな太陽系へ
   if (openLab) {

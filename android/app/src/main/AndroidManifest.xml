@@ -20,10 +20,10 @@
             </intent-filter>
         </activity>
 
-        <!-- AdMob アプリ ID(本番)。src/native/main.js の広告ユニット ID と対。 -->
+        <!-- AdMob アプリ ID(テスト)。本番公開前に src/native/main.js の広告ユニット ID と合わせて差し替える。 -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-5902840391247067~9692736343"
+            android:value="ca-app-pub-3940256099942544~3347511713"
         />
 
         <provider

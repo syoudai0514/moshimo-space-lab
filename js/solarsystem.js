@@ -459,7 +459,7 @@ export class SolarSystem {
           b.mesh.visible = false;
           b.marker.visible = false;
           b.label.visible = false;
-          this.onEvent?.({ type: (b.star || b.isBlackHole) ? 'merge' : 'absorbed', key: b.key });
+          this.onEvent?.({ type: (b.star || b.isBlackHole) ? 'merge' : 'absorbed', key: b.key, hostKey: s.key });
         }
       }
     }
