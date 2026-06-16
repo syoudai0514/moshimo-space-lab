@@ -5,7 +5,7 @@ import { SolarSystem, POS_SCALE, EARTH_MASS } from './solarsystem.js?v=24';
 import { createUniverse, epochInfo, formatUniverseTime, NOW_GYR, END_GYR } from './universe.js?v=3';
 import { createAtoms, atomEpochInfo, formatAtomTime, ATOM_LOG_MIN, ATOM_LOG_MAX } from './atoms.js?v=3';
 import { SCENARIOS } from './scenarios.js?v=4';
-import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=14';
+import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=15';
 import { SCENARIO_I18N, OBSERVE_I18N } from './i18n-data.js?v=2';
 import { bgmEnabled, startBGM, toggleBGM, isPlaying as bgmIsPlaying, playSfx, unlockAudio } from './audio.js?v=12';
 
@@ -829,9 +829,8 @@ function safeSetLocal(key, value) {
     // 保存できない環境でもアプリ本体は使えるようにする。
   }
 }
-if (!safeGetLocal('mslab-welcome-v1')) {
-  welcomeOverlay.classList.remove('hidden'); // 初回はデモの上にメニューを重ねて表示
-}
+// 初回メニューは出さない。最初は #start-gate(スタート画面)が入口になり、
+// スタート → 音つきデモ → 画面タップでメニュー、という流れにする。
 function showMenu() { welcomeOverlay.classList.remove('hidden'); }
 function dismissWelcome(openLab) {
   safeSetLocal('mslab-welcome-v1', '1');
@@ -849,6 +848,21 @@ $('welcome-demo').addEventListener('click', () => {
   startAttract();            // デモをもう一度
 });
 $('help-btn').addEventListener('click', showMenu);
+
+// オープニングの「スタート」: これがユーザー操作になるので、ここで音声を解放して
+// 音つきのデモを最初から再生する(ブラウザ/スマホは無操作では音を鳴らせない)。
+const startGate = $('start-gate');
+let gateDone = false;
+function startFromGate() {
+  if (gateDone) return;
+  gateDone = true;
+  unlockAudio();                 // この場のタップで音声解放
+  if (bgmEnabled()) startBGM();
+  startGate.classList.add('hide');
+  setTimeout(() => { startGate.style.display = 'none'; }, 500);
+  startAttract();                // 音つきデモを開始
+}
+startGate.addEventListener('click', startFromGate);
 
 // ---------- 再生コントロール ----------
 playBtn.addEventListener('click', () => {
@@ -1487,5 +1501,5 @@ applyAllI18n();
 refreshPanel();
 setMode('solar');
 updateTimeDisplay();
-startAttract();
+// デモは #start-gate の「スタート」を押してから(音つきで)開始する。
 animate();

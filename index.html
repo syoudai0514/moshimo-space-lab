@@ -19,7 +19,7 @@
   <meta name="twitter:image" content="https://syoudai0514.github.io/moshimo-space-lab/store/feature-graphic.png">
 
   <!-- ?v= はキャッシュ対策のバージョン番号。デプロイのたびに上げる -->
-  <link rel="stylesheet" href="css/style.css?v=14">
+  <link rel="stylesheet" href="css/style.css?v=15">
   <script type="importmap">
   {
     "imports": {
@@ -31,6 +31,17 @@
 </head>
 <body>
   <canvas id="view"></canvas>
+
+  <!-- オープニング: タップで音つきデモを開始する入口。
+       ブラウザ/スマホは無操作では音を鳴らせないため、最初の1タップを受け取る。 -->
+  <div id="start-gate">
+    <div id="start-gate-inner">
+      <h1 id="start-title" data-i18n="app.title">🧪 もしも宇宙ラボ</h1>
+      <p id="start-tagline" data-i18n="gate.tagline">本物の重力計算で「もしも」の宇宙を体験</p>
+      <button id="start-btn" data-i18n="gate.start">▶ スタート</button>
+      <p id="start-hint" data-i18n="gate.hint">タップすると音つきデモが始まります 🔊</p>
+    </div>
+  </div>
 
   <!-- アトラクトの「もしも」発動時の閃光 -->
   <div id="flash"></div>
@@ -249,6 +260,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=45"></script>
+  <script type="module" src="js/main.js?v=46"></script>
 </body>
 </html>

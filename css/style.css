@@ -293,6 +293,52 @@ ruby rt {
   font-size: 11.5px;
 }
 
+/* ---------- オープニング(スタート画面) ---------- */
+#start-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 60; /* すべての上に出す入口 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: radial-gradient(ellipse at 50% 35%, rgba(20, 30, 66, 0.96), rgba(4, 6, 16, 0.99) 70%);
+  backdrop-filter: blur(3px);
+  transition: opacity 0.45s ease;
+}
+#start-gate.hide { opacity: 0; pointer-events: none; }
+#start-gate-inner { text-align: center; max-width: 420px; }
+#start-title {
+  font-size: 30px;
+  color: #ffd97a;
+  margin-bottom: 12px;
+  text-shadow: 0 2px 18px rgba(255, 180, 80, 0.45);
+}
+#start-tagline {
+  font-size: 14px;
+  color: #cfe0ff;
+  line-height: 1.8;
+  margin-bottom: 28px;
+}
+#start-btn {
+  font-size: 22px;
+  font-weight: bold;
+  color: #1a1206;
+  padding: 16px 48px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(160deg, #ffe08a, #ffb24d);
+  box-shadow: 0 6px 24px rgba(255, 170, 70, 0.5);
+  cursor: pointer;
+  animation: startPulse 1.8s ease-in-out infinite;
+}
+#start-btn:active { transform: scale(0.96); }
+#start-hint { font-size: 12px; color: #9fb3d8; margin-top: 18px; }
+@keyframes startPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 6px 24px rgba(255, 170, 70, 0.45); }
+  50% { transform: scale(1.05); box-shadow: 0 8px 32px rgba(255, 190, 90, 0.7); }
+}
+
 /* ---------- 観察モードメニュー ---------- */
 #observe-menu {
   position: fixed;
