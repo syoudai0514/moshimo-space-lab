@@ -1,5 +1,7 @@
 // Google Play 用フィーチャーグラフィック(1024x500)を生成する。
-// ブラックホール降着円盤と超新星ジェットを主役にして、ストアで一瞬で内容が伝わる絵にする。
+// 「ブラックホールの降着円盤」の質感はそのままに、アプリの主題=
+// 「本物の重力で“もしも”を実験し、惑星が弾き飛ばされる」を表現する。
+// 軌道を外れて飛んでいく惑星(もしも!)を主役に加え、テーマ文も実験寄りに。
 
 import sharp from 'sharp';
 import { resolve, dirname } from 'node:path';
@@ -25,8 +27,8 @@ function stars(count) {
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <defs>
-    <radialGradient id="bg" cx="34%" cy="46%" r="88%">
-      <stop offset="0%" stop-color="#162557"/>
+    <radialGradient id="bg" cx="32%" cy="48%" r="92%">
+      <stop offset="0%" stop-color="#172759"/>
       <stop offset="54%" stop-color="#060a1d"/>
       <stop offset="100%" stop-color="#010208"/>
     </radialGradient>
@@ -37,15 +39,17 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" 
       <stop offset="78%" stop-color="#9f1b10"/>
       <stop offset="100%" stop-color="#210304"/>
     </linearGradient>
-    <linearGradient id="jet" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
-      <stop offset="36%" stop-color="#8fe8ff" stop-opacity="0.88"/>
-      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.95"/>
-      <stop offset="64%" stop-color="#78d2ff" stop-opacity="0.8"/>
-      <stop offset="100%" stop-color="#3b79ff" stop-opacity="0"/>
-    </linearGradient>
+    <radialGradient id="sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fffdf2"/>
+      <stop offset="42%" stop-color="#ffe58a"/>
+      <stop offset="100%" stop-color="rgba(255,150,40,0)"/>
+    </radialGradient>
     <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
       <feGaussianBlur stdDeviation="14" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softglow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
       <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
     <filter id="textglow" x="-35%" y="-45%" width="170%" height="190%">
@@ -57,31 +61,37 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" 
   <rect width="${W}" height="${H}" fill="url(#bg)"/>
   ${stars(190)}
 
-  <g transform="translate(205 252) rotate(-12)">
-    <ellipse rx="300" ry="86" fill="url(#disk)" opacity="0.36" filter="url(#glow)"/>
-    <ellipse rx="268" ry="58" fill="none" stroke="#ffd56a" stroke-width="32" opacity="0.9" filter="url(#glow)"/>
-    <ellipse rx="214" ry="44" fill="none" stroke="#ff7b1f" stroke-width="22" opacity="0.95"/>
-    <ellipse rx="180" ry="132" fill="none" stroke="#f8fbff" stroke-width="13" opacity="0.82" filter="url(#textglow)"/>
-    <circle r="76" fill="#000"/>
-    <circle r="94" fill="none" stroke="#050711" stroke-width="34"/>
-    <path d="M -270 14 C -112 64, 92 52, 286 -8" fill="none" stroke="#fff0b8" stroke-width="18" opacity="0.95" filter="url(#glow)"/>
-    <circle r="70" fill="#000"/>
+  <!-- 主役: 降着円盤をまとった恒星(=実験で崩壊しかけた太陽)と、それを回る惑星たち -->
+  <g transform="translate(212 286)">
+    <g transform="rotate(-13)">
+      <!-- 降着円盤(ブラックホールのテイスト) -->
+      <ellipse rx="262" ry="74" fill="url(#disk)" opacity="0.34" filter="url(#glow)"/>
+      <ellipse rx="230" ry="50" fill="none" stroke="#ffd56a" stroke-width="27" opacity="0.88" filter="url(#glow)"/>
+      <ellipse rx="184" ry="37" fill="none" stroke="#ff7b1f" stroke-width="18" opacity="0.95"/>
+      <!-- 中心の恒星(まだ光っている) -->
+      <circle r="100" fill="url(#sun)" filter="url(#glow)"/>
+      <circle r="48" fill="#fff3cf" filter="url(#softglow)"/>
+      <!-- 内側を回る惑星 -->
+      <circle cx="-184" cy="5" r="12" fill="#7fb0ff"/>
+      <circle cx="150" cy="-8" r="9" fill="#ffd08a"/>
+    </g>
+    <!-- 軌道を外れて飛んでいく惑星(=もしもの実験!)。左上の空きへ -->
+    <g transform="rotate(-150)">
+      <line x1="104" y1="0" x2="300" y2="0" stroke="rgba(255,217,122,0.78)" stroke-width="7"
+            stroke-linecap="round" stroke-dasharray="16 13" filter="url(#softglow)"/>
+      <circle cx="316" cy="0" r="16" fill="#ffd97a" filter="url(#softglow)"/>
+    </g>
   </g>
 
-  <g transform="translate(805 250) rotate(19)">
-    <path d="M 0 -28 C -34 -188, -16 -276, 0 -352 C 24 -270, 38 -176, 0 -28 Z" fill="url(#jet)" filter="url(#glow)"/>
-    <path d="M 0 28 C 34 188, 16 276, 0 352 C -24 270, -38 176, 0 28 Z" fill="url(#jet)" opacity="0.78" filter="url(#glow)"/>
-    <circle r="72" fill="#fff3cf" opacity="0.24" filter="url(#glow)"/>
-    <circle r="18" fill="#ffffff"/>
-  </g>
-
+  <!-- テーマ文(右側) -->
   <g filter="url(#textglow)">
-    <text x="675" y="178" text-anchor="middle" font-family="${FONT}" font-weight="bold" font-size="62" fill="#eef5ff">Break the Universe</text>
-    <text x="675" y="250" text-anchor="middle" font-family="${JPFONT}" font-weight="bold" font-size="42" fill="#ffd86d">宇宙をこわして、学ぶ。</text>
-    <text x="675" y="316" text-anchor="middle" font-family="${JPFONT}" font-weight="bold" font-size="29" fill="#a9c8ff">ブラックホールも、超新星爆発も、指先で実験</text>
+    <text x="712" y="166" text-anchor="middle" font-family="${FONT}" font-weight="bold" font-size="52" fill="#eef5ff">Break the Universe</text>
+    <text x="722" y="232" text-anchor="middle" font-family="${JPFONT}" font-weight="bold" font-size="37" fill="#ffd86d">こわして学ぶ、宇宙の実験室。</text>
+    <text x="722" y="292" text-anchor="middle" font-family="${JPFONT}" font-weight="bold" font-size="25" fill="#a9c8ff">太陽を消す? 木星を恒星に? 惑星を弾き飛ばす?</text>
+    <text x="722" y="330" text-anchor="middle" font-family="${JPFONT}" font-weight="bold" font-size="25" fill="#a9c8ff">本物の重力で「もしも」を実験</text>
   </g>
 
-  <text x="675" y="414" text-anchor="middle" font-family="${JPFONT}" font-weight="bold" font-size="30" fill="#dce8ff">もしも宇宙ラボ</text>
+  <text x="722" y="430" text-anchor="middle" font-family="${JPFONT}" font-weight="bold" font-size="29" fill="#dce8ff">もしも宇宙ラボ ・ What-If Space Lab</text>
 </svg>`;
 
 const out = resolve(here, '../store/feature-graphic.png');
