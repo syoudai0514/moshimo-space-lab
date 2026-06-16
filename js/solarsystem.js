@@ -459,6 +459,8 @@ export class SolarSystem {
           b.mesh.visible = false;
           b.marker.visible = false;
           b.label.visible = false;
+          if (b.accretion) b.accretion.visible = false; // 飲み込まれたBHの降着グローを残さない
+          this.clearTrail(b.key);                        // 飲み込まれた天体の軌跡を残さない
           this.onEvent?.({ type: (b.star || b.isBlackHole) ? 'merge' : 'absorbed', key: b.key, hostKey: s.key });
         }
       }
