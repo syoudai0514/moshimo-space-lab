@@ -20,6 +20,15 @@ const scShareTitle = (sc) => (getLang() === 'ja' ? sc.title : (SI(sc)?.title ?? 
 const scShareLine = (sc) => (getLang() === 'ja' ? sc.shareLine : (SI(sc)?.share ?? sc.shareLine));
 // 天体名(追加天体は生成時の名前、元の9天体は翻訳)
 const bodyName = (b) => (b && b.extra ? b.name : t(`body.${b.key}`));
+// 一覧・3Dラベル用の表示名。ブラックホール化した天体は「ブラックホール(+識別子)」に。
+// 元の名前(太陽B/地球…)末尾の識別子(B/C/2…)を引き継ぎ、言語にも追従する。
+const bodyDisplayName = (b) => {
+  if (!b || !b.isBlackHole) return bodyName(b);
+  const base = bodyName(b);
+  const m = base.match(/([A-Za-z0-9]+)\s*$/);
+  const suffix = (m && base !== m[1]) ? m[1] : '';
+  return t('body.blackHole') + (suffix ? ` ${suffix}` : '');
+};
 // "{x}" を置換する簡易フォーマッタ
 const fmt = (str, obj) => str.replace(/\{(\w+)\}/g, (_, k) => (obj[k] ?? ''));
 
@@ -174,7 +183,7 @@ function rebuildBodySelect() {
   for (const b of solar.bodies) {
     const opt = document.createElement('option');
     opt.value = b.key;
-    opt.textContent = bodyName(b);
+    opt.textContent = bodyDisplayName(b);
     bodySelect.appendChild(opt);
   }
   if ([...bodySelect.options].some((o) => o.value === prev)) bodySelect.value = prev;
@@ -182,7 +191,7 @@ function rebuildBodySelect() {
 
 // 3Dラベルを現在の言語に更新
 function relabelBodies() {
-  for (const b of solar.bodies) solar.setBodyLabel(b.key, bodyName(b));
+  for (const b of solar.bodies) solar.setBodyLabel(b.key, bodyDisplayName(b));
 }
 rebuildBodySelect();
 bodySelect.value = 'earth';
@@ -298,7 +307,11 @@ function clearLog() {
 
 solar.onEvent = (ev) => {
   playSfx(ev.type);              // 効果音はデモ中でも鳴らす(連発はaudio側で間引く)
-  if (ev.type === 'supernova') triggerFlash(); // 大爆発はデモ中でも画面を光らせる
+  if (ev.type === 'supernova') {
+    triggerFlash();              // 大爆発はデモ中でも画面を光らせる
+    rebuildBodySelect();         // 一覧の名前を「ブラックホール」に更新
+    relabelBodies();             // 3Dラベルも言語対応の名前に揃える
+  }
   if (attractMode) return;       // デモ中は通知・ログ・振動は出さない(キャプションと被らないように)
   const host = ev.hostKey ? solar.getBody(ev.hostKey) : solar.getBody('sun');
   const msg = fmt(t(`event.${ev.type}.msg`), {
@@ -959,7 +972,7 @@ function formatEarthMass(solarMass) {
 function refreshInfo() {
   const b = solar.getBody(bodySelect.value);
   const sun = solar.bodies[0];
-  const lines = [`<b>${bodyName(b)}</b>`];
+  const lines = [`<b>${bodyDisplayName(b)}</b>`];
   if (!b.alive) {
     lines.push(t('info.notExist'));
   } else {
@@ -1018,7 +1031,7 @@ function refreshPanel() {
       if (other.key === b.key || !other.alive) continue;
       const opt = document.createElement('option');
       opt.value = other.key;
-      opt.textContent = bodyName(other);
+      opt.textContent = bodyDisplayName(other);
       swapSelect.appendChild(opt);
     }
     if ([...swapSelect.options].some((o) => o.value === prev)) swapSelect.value = prev;
@@ -1087,7 +1100,7 @@ circularizeBtn.addEventListener('click', () => {
   const b = solar.getBody(bodySelect.value);
   solar.circularize(b.key);
   recordEdit(`circ:${b.key}`, 'circ', { key: b.key });
-  toast(fmt(t('toast.circ'), { name: bodyName(b) }));
+  toast(fmt(t('toast.circ'), { name: bodyDisplayName(b) }));
   refreshPanel();
 });
 
@@ -1097,7 +1110,7 @@ swapBtn.addEventListener('click', () => {
   if (!b) return;
   solar.swapBodies(a.key, b.key);
   recordEdit(`swap:${[a.key, b.key].sort().join('-')}`, 'swap', { key: a.key, key2: b.key });
-  toast(fmt(t('toast.swap'), { name: bodyName(a), name2: bodyName(b) }));
+  toast(fmt(t('toast.swap'), { name: bodyDisplayName(a), name2: bodyDisplayName(b) }));
   refreshPanel();
 });
 
@@ -1106,7 +1119,7 @@ deleteBtn.addEventListener('click', () => {
   if (!b.alive) return;
   solar.removeBody(b.key);
   recordEdit(`del:${b.key}`, 'del', { key: b.key });
-  toast(fmt(t('toast.del'), { name: bodyName(b) }) + (b.key === 'sun' ? t('toast.delSun') : ''));
+  toast(fmt(t('toast.del'), { name: bodyDisplayName(b) }) + (b.key === 'sun' ? t('toast.delSun') : ''));
   refreshPanel();
 });
 
@@ -1480,6 +1493,7 @@ function applyAllI18n() {
   updateFollowBtn();
   renderLog();
   renderScenarioList(); // 実験カードのふりがな/言語を反映
+  rebuildBodySelect();   // 天体一覧の表記も言語に合わせて作り直す
   relabelBodies();       // 3Dラベルの天体名を反映
   refreshInfo();         // 天体パネルの情報も
   if (activeScenario) $('scenario-banner-title').innerHTML = `${activeScenario.emoji} ${scTitle(activeScenario)}`;

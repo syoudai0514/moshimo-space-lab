@@ -335,7 +335,9 @@ export class SolarSystem {
   // ラベルの文字を差し替える(テクスチャを作り直す)
   _setLabel(b, text) {
     const old = b.label.material.map;
-    b.label.material.map = makeLabelTexture(text);
+    const map = makeLabelTexture(text);
+    b.label.material.map = map;
+    applyLabelScale(b.label, map); // 文字数に合わせて幅を更新(文字切れ防止)
     b.label.material.needsUpdate = true;
     if (old) old.dispose();
   }
@@ -542,7 +544,9 @@ export class SolarSystem {
     const b = this.getBody(key);
     if (!b) return;
     b.label.material.map?.dispose();
-    b.label.material.map = makeLabelTexture(text);
+    const map = makeLabelTexture(text);
+    b.label.material.map = map;
+    applyLabelScale(b.label, map); // 文字数に合わせて幅を更新(文字切れ防止)
     b.label.material.needsUpdate = true;
   }
 
@@ -777,29 +781,45 @@ export class SolarSystem {
 
 // ---------- スプライト類 ----------
 
+const LABEL_FONT = 'bold 38px "Hiragino Sans", "Yu Gothic", sans-serif';
+const LABEL_H = 64;        // キャンバスの高さ(px)
+const LABEL_PAD = 24;      // 左右の余白(px)。影のにじみと文字切れ防止
+const LABEL_BASE_H = 0.04; // スプライトの高さ(画面比)。幅はテキスト量に応じて可変
+
+// テキストの長さに合わせて幅を変えるラベルテクスチャ。
+// 「太陽B」も「ブラックホールB」も切れずに、文字の大きさは一定で表示できる。
 function makeLabelTexture(text) {
   const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 64;
   const ctx = c.getContext('2d');
-  ctx.font = 'bold 38px "Hiragino Sans", "Yu Gothic", sans-serif';
+  ctx.font = LABEL_FONT;
+  const w = Math.ceil(ctx.measureText(text).width) + LABEL_PAD * 2;
+  c.width = Math.max(256, w); // canvas.width を変えると ctx がリセットされる
+  c.height = LABEL_H;
+  ctx.font = LABEL_FONT;       // リセットされるので再設定
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.shadowColor = 'rgba(0,0,0,0.9)';
   ctx.shadowBlur = 8;
   ctx.fillStyle = '#dce8ff';
-  ctx.fillText(text, 128, 32);
+  ctx.fillText(text, c.width / 2, c.height / 2);
   return new THREE.CanvasTexture(c);
 }
 
+// キャンバスのアスペクト比に合わせてスプライト幅を決め、文字が伸縮しないようにする
+function applyLabelScale(sprite, map) {
+  const img = map.image;
+  sprite.scale.set(LABEL_BASE_H * (img.width / img.height), LABEL_BASE_H, 1);
+}
+
 function makeLabel(text) {
+  const map = makeLabelTexture(text);
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: makeLabelTexture(text),
+    map,
     transparent: true,
     depthWrite: false,
     sizeAttenuation: false, // どれだけ離れても同じ大きさで表示
   }));
-  sprite.scale.set(0.16, 0.04, 1);
+  applyLabelScale(sprite, map);
   sprite.center.set(0.5, -0.45); // アンカーより少し上に表示
   return sprite;
 }
