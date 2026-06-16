@@ -187,9 +187,15 @@
 
     <label class="field">
       <span><span data-i18n="panel.mass">重さ</span>: <b id="mass-value">×1.00</b></span>
-      <input type="range" id="mass-slider" min="-2" max="3" step="0.01" value="0">
+      <input type="range" id="mass-slider" min="-2" max="1" step="0.01" value="0">
     </label>
-    <button id="mass-extend" class="action secondary" data-i18n="panel.massExtend">⚡ もっと重くできるようにする (最大×10000)</button>
+    <div class="seg-row" id="mass-cap">
+      <span class="seg-label" data-i18n="panel.massCap">上限</span>
+      <button type="button" class="seg-btn active" data-cap="1">×10</button>
+      <button type="button" class="seg-btn" data-cap="2">×100</button>
+      <button type="button" class="seg-btn" data-cap="3">×1000</button>
+      <button type="button" class="seg-btn" data-cap="4">×10000</button>
+    </div>
 
     <label class="field" id="dist-field">
       <span><span data-i18n="panel.dist">太陽からの距離</span>: <b id="dist-value">1.00 AU</b></span>

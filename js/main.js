@@ -149,15 +149,20 @@ const bodySelect = $('body-select');
 const bodyInfo = $('body-info');
 const sizeSlider = $('size-slider');
 const massSlider = $('mass-slider');
-const massExtend = $('mass-extend');
+const massCap = $('mass-cap');
 const distSlider = $('dist-slider');
-// 重さスライダーは既定 ×1000 まで。ボタンで ×10000 まで解放(または重い天体を選んだら自動で)。
-massExtend?.addEventListener('click', () => { massSlider.max = '4'; massExtend.classList.add('hidden'); });
-function ensureMassRange(scale) {
-  if (!massExtend) return;
-  if (scale > 1000) { massSlider.max = '4'; massExtend.classList.add('hidden'); }
-  else massExtend.classList.toggle('hidden', massSlider.max === '4');
+// 重さスライダーの上限倍率を ×10/100/1000/10000 から選ぶ(既定 ×10)。クリックで切り替え。
+// data-cap は log10(上限) = 1..4。max を変えるだけで、実際の質量はドラッグするまで変わらない。
+function setMassCap(cap) {
+  if (!massCap) return;
+  massSlider.max = String(cap);
+  for (const btn of massCap.querySelectorAll('.seg-btn'))
+    btn.classList.toggle('active', btn.dataset.cap === String(cap));
 }
+massCap?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.seg-btn');
+  if (btn) setMassCap(parseInt(btn.dataset.cap, 10));
+});
 const distField = $('dist-field');
 const speedField = $('speed-field');
 const orbspeedSlider = $('orbspeed-slider');
@@ -1001,7 +1006,6 @@ function refreshInfo() {
 function refreshPanel() {
   rebuildBodySelect(); // 追加・リセット後も天体リストを常に同期
   const b = solar.getBody(bodySelect.value);
-  ensureMassRange(b.massScale); // 重い天体を選んだらスライダー上限を自動解放
   sizeSlider.value = Math.log10(b.sizeScale);
   massSlider.value = Math.log10(b.massScale);
   sizeValue.textContent = `×${b.sizeScale.toFixed(2)}`;
