@@ -332,12 +332,29 @@ export class SolarSystem {
     }
   }
 
+  // ラベルの文字を差し替える(テクスチャを作り直す)
+  _setLabel(b, text) {
+    const old = b.label.material.map;
+    b.label.material.map = makeLabelTexture(text);
+    b.label.material.needsUpdate = true;
+    if (old) old.dispose();
+  }
+
+  // 「太陽B」→「ブラックホールB」のように、元の識別子(末尾のB/C/2…)を保ったBH名を作る
+  _blackHoleName(name) {
+    const m = name.match(/([A-Za-z0-9]+)\s*$/); // 末尾の識別子
+    const suffix = (m && name !== m[1]) ? m[1] : '';
+    return 'ブラックホール' + suffix;
+  }
+
   _collapse(b) {
     if (b.isBlackHole) return;
     b.isBlackHole = true;
     b.radiusKm = Math.max(b.radiusKm, 696000 * 0.6); // 見えるコンパクト天体に
     b.mesh.material.color.setHex(0x000000);          // 影(背景の星を隠す黒い球)
     b.marker.visible = false;                        // 中心の色マーカーは消す(影を汚さない)
+    this._setLabel(b, this._blackHoleName(b.name));  // ラベルを「ブラックホール◯」に
+    b.label.visible = true;
     // ブラックホール本体: カメラを向くビルボード。降着円盤が重力レンズで影の上下に
     // 回り込む「インターステラー型」の見た目をテクスチャで表現。
     const spr = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -436,6 +453,7 @@ export class SolarSystem {
     b.isBlackHole = false;
     if (b.accretion) { this.scene.remove(b.accretion); b.accretion = null; }
     if (b.accRing) { b.mesh.remove(b.accRing); b.accRing = null; }
+    this._setLabel(b, b.name); // ラベルを元の名前に戻す
   }
 
   // どの恒星・ブラックホールも、表面(画面上の大きさ)に触れた軽い天体を飲み込む。
@@ -848,6 +866,7 @@ function makeBlackHoleTexture() {
   const cv = document.createElement('canvas');
   cv.width = cv.height = S;
   const cx = S / 2, cy = S / 2, rs = S * 0.115;
+  const half = S / 2; // テクスチャ端へのフェード用
   const A = 3.3; // 円盤の半幅(端は楕円なので滑らかにすぼむ)
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
   const g = (z) => Math.exp(-(z * z));
@@ -886,6 +905,10 @@ function makeBlackHoleTexture() {
       // 明るさを上げてからトーンマップ(小さく表示しても映えるように)
       R *= 1.35; G *= 1.35; B *= 1.35;
       R = R / (1 + 0.30 * R); G = G / (1 + 0.30 * G); B = B / (1 + 0.30 * B);
+      // テクスチャの四角い端で急に切れないよう、外周をなめらかに黒へフェード
+      let edge = clamp((0.99 - Math.hypot(j - cx, i - cy) / half) / 0.25, 0, 1);
+      edge = edge * edge * (3 - 2 * edge); // smoothstep
+      R *= edge; G *= edge; B *= edge;
       const k = (i * S + j) * 4;
       d[k] = clamp(R, 0, 1) * 255; d[k + 1] = clamp(G, 0, 1) * 255; d[k + 2] = clamp(B, 0, 1) * 255; d[k + 3] = 255;
     }
