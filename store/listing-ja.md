@@ -49,7 +49,7 @@
 宇宙, 物理, シミュレーション, 太陽系, 惑星, 重力, 学習, 天文, ビッグバン, 銀河
 
 ## 連絡先メール
-syoudai0514@gmail.com
+syoudai1984-manga@yahoo.co.jp
 
 ## プライバシーポリシー URL
 https://syoudai0514.github.io/moshimo-space-lab/privacy.html

@@ -54,7 +54,7 @@ space, physics, simulation, solar system, planets, gravity, learning,
 astronomy, big bang, galaxy
 
 ## Contact email
-syoudai0514@gmail.com
+syoudai1984-manga@yahoo.co.jp
 
 ## Privacy policy URL
 https://syoudai0514.github.io/moshimo-space-lab/privacy.html
