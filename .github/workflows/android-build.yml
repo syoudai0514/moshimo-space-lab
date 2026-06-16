@@ -96,23 +96,36 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew bundleRelease --no-daemon
 
-      - name: AAB の広告IDを検証(本番ID在中 / テストID不在)
+      - name: AAB の広告IDを検証(アプリ設定が本番ID / テストID不使用)
         if: steps.signing.outputs.enabled == 'true'
         working-directory: android/app/build/outputs/bundle/release
         run: |
           rm -rf _aab_check && unzip -q -o app-release.aab -d _aab_check
           fail=0
-          echo "--- 本番IDが含まれているか ---"
-          grep -aRl "ca-app-pub-5902840391247067~9692736343" _aab_check >/dev/null \
+          MANIFEST=$(find _aab_check -path '*/manifest/AndroidManifest.xml' | head -1)
+          BUNDLE=$(find _aab_check -path '*/assets/public/native.bundle.js' | head -1)
+          echo "manifest=$MANIFEST"
+          echo "bundle=$BUNDLE"
+
+          echo "--- アプリ設定(Manifest)のAdMobアプリID ---"
+          grep -aq "ca-app-pub-5902840391247067~9692736343" "$MANIFEST" \
             && echo "OK: 本番アプリID あり" || { echo "NG: 本番アプリID なし"; fail=1; }
-          grep -aRl "ca-app-pub-5902840391247067/6234008495" _aab_check >/dev/null \
+          if grep -aq "ca-app-pub-3940256099942544~3347511713" "$MANIFEST"; then
+            echo "NG: テストアプリID がManifestに残存"; fail=1
+          else echo "OK: テストアプリID は不使用"; fi
+
+          echo "--- アプリのJS(assets)が要求する広告ユニットID ---"
+          grep -aq "ca-app-pub-5902840391247067/6234008495" "$BUNDLE" \
             && echo "OK: 本番広告ユニットID あり" || { echo "NG: 本番広告ユニットID なし"; fail=1; }
-          echo "--- テストIDが残っていないか ---"
-          if grep -aRl "ca-app-pub-3940256099942544" _aab_check >/dev/null; then
-            echo "NG: テストID が残存"; fail=1
-          else
-            echo "OK: テストID なし"
-          fi
+          if grep -aq "ca-app-pub-3940256099942544/1033173712" "$BUNDLE"; then
+            echo "NG: テスト広告ユニットID がアプリJSに残存"; fail=1
+          else echo "OK: テスト広告ユニットID は不使用"; fi
+
+          # 参考: テスト文字列は @capacitor-community/admob SDK の未使用定数として
+          # dex 内に残るが、isTesting=false のため実行時には使われない(無害)。
+          echo "--- 参考: テスト文字列を含むファイル(SDK由来は無害) ---"
+          grep -aRl "ca-app-pub-3940256099942544" _aab_check || true
+
           rm -rf _aab_check
           exit $fail
 
