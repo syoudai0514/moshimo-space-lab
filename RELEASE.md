@@ -40,7 +40,8 @@ GitHub Actions 上で APK / AAB をビルドする仕組みを用意していま
 4. ZIP を展開して出てくる `app-debug.apk` を Android 端末に転送し、
    「提供元不明のアプリ」を許可してインストール → 実機で動作確認。
 
-> デバッグ APK は **テスト広告** が表示されます(`TESTING=true` のまま)。動作確認用です。
+> 本番 AdMob ID に切り替え済み(`TESTING=false`)。動作確認時は自分の端末をテストデバイスに
+> 登録するか、表示確認を最小限にしてください(本番広告の自己クリック/連打はアカウント停止リスク)。
 
 ### B. Play 提出用の署名済み AAB(keystore を Secrets に登録すると自動生成)
 署名鍵(keystore)を一度だけ作り、その内容を GitHub の Secrets に登録すると、
@@ -75,24 +76,23 @@ CI が **署名済みの `app-release.aab`** まで自動で出力します(Play
 
 ---
 
-## 2. AdMob を本番用に切り替える(広告で収益化する場合)
-今は **Google 公式のテスト広告 ID** が入っています。テスト ID のままだと実際の収益は発生しません。
-本番に切り替えるには、AdMob 管理画面でアプリと広告ユニットを作成し、**2 か所**を書き換えます。
+## 2. AdMob 設定(本番 ID 設定済み)
+**本番 AdMob ID に切り替え済みです**(`TESTING=false`)。以下の **2 か所**に本番 ID が入っています。
 
 1. **アプリ ID** … `android/app/src/main/AndroidManifest.xml`
    ```xml
    <meta-data
      android:name="com.google.android.gms.ads.APPLICATION_ID"
-     android:value="ca-app-pub-XXXXXXXX~XXXXXXXX" />  <!-- ← 本物のアプリ ID -->
+     android:value="ca-app-pub-5902840391247067~9692736343" />  <!-- 本番アプリ ID -->
    ```
 2. **広告ユニット ID と本番フラグ** … `src/native/main.js`
    ```js
-   const TESTING = false;  // ← 本番は false
+   const TESTING = false;  // 本番
    const AD_UNITS = {
-     interstitial: 'ca-app-pub-XXXXXXXX/XXXXXXXX', // ← 本物の広告ユニット ID
+     interstitial: 'ca-app-pub-5902840391247067/6234008495', // 本番広告ユニット ID
    };
    ```
-   書き換えたら `npm run sync` を忘れずに。
+   ソースを変更したら `npm run sync` を忘れずに。
 
 > ⚠️ 実機で動作確認をするときも、自分の端末を「テストデバイス」に登録するか、テスト ID を使ってください。
 > 自分で本番広告をタップ/表示しすぎると、AdMob アカウントが停止されることがあります。

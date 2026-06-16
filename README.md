@@ -43,7 +43,7 @@ npx cap open android  # Android Studio で開く
 ```
 
 - 広告(AdMob)などネイティブ専用の処理は `src/native/main.js`(Web 版では読み込まれない)
-- 現在は Google 公式の**テスト広告 ID**。本番 ID への差し替え方は RELEASE.md の手順2
+- **本番 AdMob ID 設定済み**(`TESTING=false`)。ID の場所・運用上の注意は RELEASE.md の手順2
 - ストア掲載文・素材は `store/`、プライバシーポリシーは `privacy.html`
 
 ## ロードマップ

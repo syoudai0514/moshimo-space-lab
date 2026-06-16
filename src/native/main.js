@@ -8,20 +8,18 @@ import { Capacitor } from '@capacitor/core';
 import { AdMob } from '@capacitor-community/admob';
 
 // ===================================================================
-// ⚠️ リリース前に、ここを AdMob 管理画面で取得した「本物の ID」に差し替える。
-//    今は Google 公式のテスト ID。テスト ID のままなら本番広告は配信されない
-//    (規約上、テスト中に本番 ID を連打するとアカウント停止のリスクがあるため、
-//     実機テストの段階でも基本はテスト ID + isTesting:true のままにする)。
-//    本番に切り替えるときは TESTING=false にして adId を本物に変更すること。
+// ✅ 本番 AdMob ID に切り替え済み(Google Play 申請用)。
+//    TESTING=false / 下記は AdMob 管理画面で発行した本物の広告ユニット ID。
+//    AndroidManifest.xml の com.google.android.gms.ads.APPLICATION_ID も
+//    本番アプリ ID (ca-app-pub-5902840391247067~9692736343) に合わせてある。
 //
-//    AndroidManifest.xml の APPLICATION_ID も合わせて差し替える必要がある
-//    (android/app/src/main/AndroidManifest.xml の
-//     com.google.android.gms.ads.APPLICATION_ID)。
+//    ⚠️ 本番 ID の状態で自分で広告を何度も表示・タップしないこと(アカウント停止リスク)。
+//       実機での動作確認はテスト端末設定を使うか、最小限にとどめる。
 // ===================================================================
-const TESTING = true;
+const TESTING = false;
 const AD_UNITS = {
-  // Google 公式の Android テスト用インタースティシャル広告ユニット ID
-  interstitial: 'ca-app-pub-3940256099942544/1033173712',
+  // 本番インタースティシャル広告ユニット ID
+  interstitial: 'ca-app-pub-5902840391247067/6234008495',
 };
 
 // 広告の頻度制御
