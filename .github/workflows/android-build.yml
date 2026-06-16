@@ -96,6 +96,26 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew bundleRelease --no-daemon
 
+      - name: AAB の広告IDを検証(本番ID在中 / テストID不在)
+        if: steps.signing.outputs.enabled == 'true'
+        working-directory: android/app/build/outputs/bundle/release
+        run: |
+          rm -rf _aab_check && unzip -q -o app-release.aab -d _aab_check
+          fail=0
+          echo "--- 本番IDが含まれているか ---"
+          grep -aRl "ca-app-pub-5902840391247067~9692736343" _aab_check >/dev/null \
+            && echo "OK: 本番アプリID あり" || { echo "NG: 本番アプリID なし"; fail=1; }
+          grep -aRl "ca-app-pub-5902840391247067/6234008495" _aab_check >/dev/null \
+            && echo "OK: 本番広告ユニットID あり" || { echo "NG: 本番広告ユニットID なし"; fail=1; }
+          echo "--- テストIDが残っていないか ---"
+          if grep -aRl "ca-app-pub-3940256099942544" _aab_check >/dev/null; then
+            echo "NG: テストID が残存"; fail=1
+          else
+            echo "OK: テストID なし"
+          fi
+          rm -rf _aab_check
+          exit $fail
+
       - name: リリース AAB をアップロード
         if: steps.signing.outputs.enabled == 'true'
         uses: actions/upload-artifact@v4
