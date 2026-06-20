@@ -8,6 +8,7 @@ import { SCENARIOS } from './scenarios.js?v=4';
 import { LANGS, getLang, setLang, t, tPlain, applyStaticI18n, fmtYears, furi, getFurigana, setFurigana, SC_FURIGANA } from './i18n.js?v=15';
 import { SCENARIO_I18N, OBSERVE_I18N } from './i18n-data.js?v=2';
 import { bgmEnabled, startBGM, toggleBGM, isPlaying as bgmIsPlaying, playSfx, unlockAudio } from './audio.js?v=12';
+import { initAnalytics, track } from './analytics.js?v=1';
 
 const SI = (sc) => SCENARIO_I18N[getLang()]?.[sc.id]; // 現在言語の実験翻訳(無ければ undefined)
 // 実験の表示用タイトル・問い。日本語のときは子供向けにふりがな付き。
@@ -383,6 +384,7 @@ function startScenario(sc) {
   for (const el of scenarioList.children) {
     el.classList.toggle('active', el.dataset.id === sc.id);
   }
+  track(`scenario/${sc.id}`); // どの「もしも実験」が人気か
   logEvent(fmt(t('toast.expStartLog'), { title: scShareTitle(sc) }));
   toast(t('toast.expStart'));
   updatePlayBtn();
@@ -516,6 +518,7 @@ $('share-copy').addEventListener('click', async () => {
 
 // ---- 画像カード ----
 async function shareImage() {
+  track('share');
   const blob = await buildShareCardBlob();
   const file = new File([blob], 'moshimo-space-lab.png', { type: 'image/png' });
   if (navigator.canShare?.({ files: [file] })) {
@@ -802,11 +805,13 @@ $('observe-close').addEventListener('click', () => observeMenu.classList.add('hi
 
 $('go-galaxy').addEventListener('click', () => {
   setMode('galaxy');
+  track('mode/galaxy');
   introToast('galaxy', t('intro.galaxy'));
 });
 
 $('go-universe').addEventListener('click', () => {
   setMode('universe');
+  track('mode/universe');
   introToast('universe', t('intro.universe'));
 });
 
@@ -820,6 +825,7 @@ zoomBtn.addEventListener('click', () => {
     atomsSlider.value = atomsS;
     universePlaying = false;
     setMode('atoms');
+    track('mode/atoms');
     introToast('atoms', t('intro.atoms'));
   } else if (mode === 'atoms') {
     const gyr = Math.min(atomsSliderToYears(atomsS) / 1e9, END_GYR);
@@ -874,6 +880,7 @@ let gateDone = false;
 function startFromGate() {
   if (gateDone) return;
   gateDone = true;
+  track('start');                // スタートを押して実際に遊び始めた人
   unlockAudio();                 // この場のタップで音声解放
   if (bgmEnabled()) startBGM();
   startGate.classList.add('hide');
@@ -1521,3 +1528,4 @@ setMode('solar');
 updateTimeDisplay();
 // デモは #start-gate の「スタート」を押してから(音つきで)開始する。
 animate();
+initAnalytics(); // アクセス解析(Web版のみ作動)
